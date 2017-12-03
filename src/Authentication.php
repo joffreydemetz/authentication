@@ -16,99 +16,99 @@ use JDZ\Authentication\Connector\Connector;
  */
 class Authentication 
 {
-	/**
+  /**
    * Failed request (initial status)
    * 
-   * @var 	constant 
+   * @var   constant 
    */
-	const FAILURE = 0;
+  const FAILURE = 0;
 
-	/**
+  /**
    * Successful response
    * 
-   * @var 	constant 
+   * @var   constant 
    */
-	const SUCCESS = 1;
+  const SUCCESS = 1;
 
-	/**
+  /**
    * Missing login 
    * 
-   * @var 	constant 
+   * @var   constant 
    */
-	const EMPTY_USER = 2;
+  const EMPTY_USER = 2;
 
-	/**
+  /**
    * Missing password 
    * 
-   * @var 	constant 
+   * @var   constant 
    */
-	const EMPTY_PASS = 3;
+  const EMPTY_PASS = 3;
   
-	/**
+  /**
    * Account not found
    * 
-   * @var 	constant 
+   * @var   constant 
    */
-	const BAD_CREDENTIALS = 4;
+  const BAD_CREDENTIALS = 4;
 
-	/**
+  /**
    * Invalid password
    * 
-   * @var 	constant 
+   * @var   constant 
    */
-	const BAD_PASS = 5;
+  const BAD_PASS = 5;
   
-	/**
+  /**
    * List of connectors (local|..)
    * 
-   * @var 	array 
+   * @var   array 
    */
   protected $connectors;
   
-	/**
-	 * Constructor
+  /**
+   * Constructor
    * 
-   * @param 	array   $config   Key/value pairs
-	 */
-	public function __construct(array $config=[])
-	{
+   * @param   array   $config   Key/value pairs
+   */
+  public function __construct(array $config=[])
+  {
     foreach($config as $key => $value){
       $this->{$key} = $value;
     }
     
     $this->connectors = [];
-	}
+  }
   
-	/**
+  /**
    * Add a connector to the stack
    * 
-	 * @param 	Connector  $connector   Authentication connector instance
-	 * @return 	void
-	 */
+   * @param   Connector  $connector   Authentication connector instance
+   * @return   void
+   */
   public function addConnector(Connector $connector)
   {
     $this->connectors[] = $connector;
   }
   
-	/**
+  /**
    * Prepare authentication
    * 
-	 * @param 	array  $credentials  Array holding the user credentials
-	 * @return 	Response
-	 */
-	public function authenticate(array $credentials)
-	{
-		$response = new AuthenticationResponse();
+   * @param   array  $credentials  Array holding the user credentials
+   * @return   Response
+   */
+  public function authenticate(array $credentials)
+  {
+    $response = new AuthenticationResponse();
     
-		if ( empty($credentials['username']) ){
+    if ( empty($credentials['username']) ){
       $response->status = Authentication::EMPTY_USER;
       return $response;
-		}
+    }
     
-		if ( empty($credentials['password']) ){
+    if ( empty($credentials['password']) ){
       $response->status = Authentication::EMPTY_PASS;
       return $response;
-		}
+    }
     
     $connectors = array_reverse($this->connectors);
     foreach($connectors as $connector){
@@ -117,6 +117,6 @@ class Authentication
       }
     }
     
-		return $response;
-	}
+    return $response;
+  }
 }

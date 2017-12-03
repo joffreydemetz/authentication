@@ -13,18 +13,8 @@
     </php>
 
     <testsuites>
-        <testsuite name="JDZ Web Authentication Test Suite">
-            <directory>./Tests/</directory>
+        <testsuite name="JDZ Authentication Test Suite">
+            <directory>./tests/</directory>
         </testsuite>
     </testsuites>
-
-    <filter>
-        <whitelist>
-            <directory>./</directory>
-            <exclude>
-                <directory>./Tests</directory>
-                <directory>./vendor</directory>
-            </exclude>
-        </whitelist>
-    </filter>
 </phpunit>

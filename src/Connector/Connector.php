@@ -14,33 +14,33 @@ namespace JDZ\Authentication\Connector;
  */
 abstract class Connector implements ConnectorInterface
 {
-	/**
-	 * Constructor
+  /**
+   * Constructor
    * 
-   * @param 	array   $config   Key/value pairs
-	 */
-	public function __construct(array $config=[])
-	{
+   * @param   array   $config   Key/value pairs
+   */
+  public function __construct(array $config=[])
+  {
     foreach($config as $key => $value){
       $this->{$key} = $value;
     }
-	}
+  }
   
-	/**
+  /**
    * Get the user hashed password from the username
    * 
-	 * @param 	array       $credentials  Key/value pairs holding the user credentials
-	 * @return 	string      The user hashed password
-	 */
+   * @param   array       $credentials  Key/value pairs holding the user credentials
+   * @return   string      The user hashed password
+   */
   abstract protected function getHashedPassword(array $credentials);
   
-	/**
+  /**
    * Check the user password
    * 
-	 * @param 	array       $credentials        Key/value pairs holding the user credentials
-	 * @param 	string      $hashed_password    The user hashed password
-	 * @return 	bool  True if the passwords are a match.
-	 */
+   * @param   array       $credentials        Key/value pairs holding the user credentials
+   * @param   string      $hashed_password    The user hashed password
+   * @return   bool  True if the passwords are a match.
+   */
   protected function checkPassword(array $credentials, $hashed_password)
   {
     return ( password_verify($credentials['password'], $hashed_password) );

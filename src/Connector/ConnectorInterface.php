@@ -16,12 +16,12 @@ use JDZ\Authentication\AuthenticationResponse;
  */
 interface ConnectorInterface 
 {
-	/**
+  /**
    * Used to authenticate user
    * 
-	 * @param 	array	                    $credentials  Key/value pairs holding the user credentials
-	 * @param 	AuthenticationResponse	  $response     Authentication response object
-	 * @return 	boolean
-	 */
+   * @param   array                      $credentials  Key/value pairs holding the user credentials
+   * @param   AuthenticationResponse    $response     Authentication response object
+   * @return   boolean
+   */
   public function authenticate(array $credentials, AuthenticationResponse &$response);
 }

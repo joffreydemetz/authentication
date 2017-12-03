@@ -14,70 +14,70 @@ namespace JDZ\Authentication;
  */
 class AuthenticationResponse 
 {
-	/**
+  /**
    * Response status (see status codes)
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $status;
+  public $status;
 
-	/**
+  /**
    * The type of authentication that was successful
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $type;
+  public $type;
 
-	/**
+  /**
    * End User email as specified in section 3.4.1 of [RFC2822]
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $email;
+  public $email;
 
-	/**
+  /**
    * End User password
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $password;
+  public $password;
   
-	/**
+  /**
    * End User full name
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $fullname;
+  public $fullname;
   
-	/**
+  /**
    * End User firstname
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $firstname;
+  public $firstname;
   
-	/**
+  /**
    * End User lastname
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $lastname;
+  public $lastname;
 
-	/**
+  /**
    * End User username
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $username;
+  public $username;
   
-	/**
+  /**
    * End User preferred language as specified by ISO639
    * 
-   * @var 	string 
+   * @var   string 
    */
-	public $language;
+  public $language;
   
-	/**
+  /**
    * Constructor
    */
   public function __construct()

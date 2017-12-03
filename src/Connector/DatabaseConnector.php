@@ -17,39 +17,39 @@ use JDZ\Authentication\AuthenticationResponse;
  */
 abstract class DatabaseConnector extends Connector
 {
-	/**
+  /**
    * Table name
    * 
-   * @var 	string 
+   * @var   string 
    */
   protected $tbl_name;
   
-	/**
+  /**
    * Table username column
    * 
-   * @var 	string 
+   * @var   string 
    */
   protected $tbl_username_column;
   
-	/**
+  /**
    * Table password column
    * 
-   * @var 	string 
+   * @var   string 
    */
   protected $tbl_pass_column;
   
-	/**
+  /**
    * Used to authenticate user
    * 
-	 * @param 	array	                    $credentials  Key/value pairs holding the user credentials
-	 * @param 	AuthenticationResponse	  $response     Authentication response object
-	 * @return 	boolean
-	 */
+   * @param   array                      $credentials  Key/value pairs holding the user credentials
+   * @param   AuthenticationResponse    $response     Authentication response object
+   * @return   boolean
+   */
   public function authenticate(array $credentials, AuthenticationResponse &$response)
-	{
+  {
     $hashed_password = $this->getHashedPassword($credentials);
     
-		if ( $hashed_password === '' ){
+    if ( $hashed_password === '' ){
       $response->status = Authentication::BAD_CREDENTIALS;
       return false;
     }
@@ -59,8 +59,8 @@ abstract class DatabaseConnector extends Connector
       return false;
     }
     
-		$response->type   = 'Database';
+    $response->type   = 'Database';
     $response->status = Authentication::SUCCESS;
     return true;
-	}
+  }
 }

@@ -17,42 +17,42 @@ use JDZ\Authentication\AuthenticationResponse;
  */
 class BasicConnector extends Connector
 {
-	/**
+  /**
    * Expected username
    * 
-   * @var 	string 
+   * @var   string 
    */
   protected $username;
   
-	/**
+  /**
    * Expected username
    * 
-   * @var 	string 
+   * @var   string 
    */
   protected $password;
   
-	/**
+  /**
    * Used to authenticate user
    * 
-	 * @param 	array	                    $credentials  Key/value pairs holding the user credentials
-	 * @param 	AuthenticationResponse	  $response     Authentication response object
-	 * @return 	boolean
-	 */
+   * @param   array                      $credentials  Key/value pairs holding the user credentials
+   * @param   AuthenticationResponse    $response     Authentication response object
+   * @return   boolean
+   */
   public function authenticate(array $credentials, AuthenticationResponse &$response)
-	{
-		if ( $credentials['username'] === '' ){
+  {
+    if ( $credentials['username'] === '' ){
       $response->status = Authentication::EMPTY_USER;
       return false;
     }
     
-		if ( !isset($this->username) || $this->username === '' || $credentials['username'] !== $this->username ){
+    if ( !isset($this->username) || $this->username === '' || $credentials['username'] !== $this->username ){
       $response->status = Authentication::BAD_CREDENTIALS;
       return false;
     }
     
     $hashed_password = $this->getHashedPassword($credentials);
     
-		if ( $hashed_password === '' ){
+    if ( $hashed_password === '' ){
       $response->status = Authentication::BAD_CREDENTIALS;
       return false;
     }
@@ -62,17 +62,17 @@ class BasicConnector extends Connector
       return false;
     }
     
-		$response->type   = 'Basic';
+    $response->type   = 'Basic';
     $response->status = Authentication::SUCCESS;
     return true;
-	}
+  }
   
-	/**
+  /**
    * Get the wanted hashed password
    * 
-	 * @param 	array       $credentials  Key/value pairs holding the user credentials
-	 * @return 	string      The user hashed password
-	 */
+   * @param   array       $credentials  Key/value pairs holding the user credentials
+   * @return   string      The user hashed password
+   */
   protected function getHashedPassword(array $credentials)
   {
     return isset($this->password) ? $this->password : '';
