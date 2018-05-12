@@ -3,7 +3,7 @@
  * THIS SOFTWARE IS PRIVATE
  * CONTACT US FOR MORE INFORMATION
  * Joffrey Demetz <joffrey.demetz@gmail.com>
- * <http://callisto.izisawebsite.com>
+ * <http://callisto-framework.com>
  */
 namespace JDZ\Authentication\Connector;
 
