@@ -26,7 +26,7 @@ class AuthenticationResponse
    * 
    * @var   string 
    */
-  public $type;
+  public string $type;
 
   /**
    * End User email as specified in section 3.4.1 of [RFC2822]
