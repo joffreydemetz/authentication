@@ -1,88 +1,27 @@
 <?php
+
 /**
- * (c) Joffrey Demetz <joffrey.demetz@gmail.com>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
+ * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
+ * @license   MIT License; <https://opensource.org/licenses/MIT>
  */
+
 namespace JDZ\Authentication;
 
-/**
- * Authentication response class, provides an object for storing user and error details
- *
- * @author Joffrey Demetz <joffrey.demetz@gmail.com>
- */
-class AuthenticationResponse 
+class AuthenticationResponse
 {
-  /**
-   * Response status (see status codes)
-   * 
-   * @var   string 
-   */
-  public $status;
-
-  /**
-   * The type of authentication that was successful
-   * 
-   * @var   string 
-   */
+  public AuthStatusEnum $status;
   public string $type;
+  public string $email; // as specified in section 3.4.1 of [RFC2822]
+  public string $password;
+  public string $fullname;
+  public string $firstname;
+  public string $lastname;
+  public string $username;
+  public string $language;
 
-  /**
-   * End User email as specified in section 3.4.1 of [RFC2822]
-   * 
-   * @var   string 
-   */
-  public $email;
-
-  /**
-   * End User password
-   * 
-   * @var   string 
-   */
-  public $password;
-  
-  /**
-   * End User full name
-   * 
-   * @var   string 
-   */
-  public $fullname;
-  
-  /**
-   * End User firstname
-   * 
-   * @var   string 
-   */
-  public $firstname;
-  
-  /**
-   * End User lastname
-   * 
-   * @var   string 
-   */
-  public $lastname;
-
-  /**
-   * End User username
-   * 
-   * @var   string 
-   */
-  public $username;
-  
-  /**
-   * End User preferred language as specified by ISO639
-   * 
-   * @var   string 
-   */
-  public $language;
-  
-  /**
-   * Constructor
-   */
   public function __construct()
   {
-    $this->status    = Authentication::FAILURE;
+    $this->status    = AuthStatusEnum::FAILURE;
     $this->type      = '';
     $this->email     = '';
     $this->password  = '';
@@ -91,5 +30,21 @@ class AuthenticationResponse
     $this->lastname  = '';
     $this->username  = '';
     $this->language  = 'fr-FR';
+  }
+
+  public function toArray(): mixed
+  {
+    return [
+      'status'    => $this->status->code(),
+      'message'   => $this->status->message(),
+      'type'      => $this->type,
+      'email'     => $this->email,
+      'password'  => $this->password,
+      'fullname'  => $this->fullname,
+      'firstname' => $this->firstname,
+      'lastname'  => $this->lastname,
+      'username'  => $this->username,
+      'language'  => $this->language,
+    ];
   }
 }

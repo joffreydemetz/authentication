@@ -1,80 +1,65 @@
 <?php
+
 /**
- * (c) Joffrey Demetz <joffrey.demetz@gmail.com>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
+ * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
+ * @license   MIT License; <https://opensource.org/licenses/MIT>
  */
+
 namespace JDZ\Authentication\Connector;
 
-use JDZ\Authentication\Authentication;
+use JDZ\Authentication\AuthStatusEnum;
 use JDZ\Authentication\AuthenticationResponse;
 
-/**
- * Basic connector for authentication
- *
- * @author Joffrey Demetz <joffrey.demetz@gmail.com>
- */
 class BasicConnector extends Connector
 {
-  /**
-   * Expected username
-   * 
-   * @var   string 
-   */
-  protected $username;
-  
-  /**
-   * Expected username
-   * 
-   * @var   string 
-   */
-  protected $password;
-  
-  /**
-   * Used to authenticate user
-   * 
-   * @param  array                   $credentials  Key/value pairs holding the user credentials
-   * @param  AuthenticationResponse  $response     Authentication response object
-   * @return boolean
-   */
-  public function authenticate(array $credentials, AuthenticationResponse &$response)
+  protected string $username;
+  protected string $password;
+
+  public function __construct(string $username, string $password)
   {
-    if ( $credentials['username'] === '' ){
-      $response->status = Authentication::EMPTY_USER;
+    $this->username = $username;
+    $this->password = $password;
+
+    if ($this->username === '' || $this->password === '') {
+      throw new \InvalidArgumentException('Username and password must be set in the configuration.');
+    }
+
+    // check if the password is hashed, if not hash it
+    if (!\password_get_info($this->password)['algo']) {
+      $this->password = \password_hash($this->password, \PASSWORD_DEFAULT);
+    }
+  }
+
+  public function authenticate(array $credentials, AuthenticationResponse $response): bool
+  {
+    if (empty($credentials['username'])) {
+      $response->status = AuthStatusEnum::EMPTY_USER;
       return false;
     }
-    
-    if ( !isset($this->username) || $this->username === '' || $credentials['username'] !== $this->username ){
-      $response->status = Authentication::BAD_CREDENTIALS;
+
+    if (empty($credentials['password'])) {
+      $response->status = AuthStatusEnum::EMPTY_PASS;
       return false;
     }
-    
-    $hashed_password = $this->getHashedPassword($credentials);
-    
-    if ( $hashed_password === '' ){
-      $response->status = Authentication::BAD_CREDENTIALS;
+
+    if ($credentials['username'] !== $this->username) {
+      $response->status = AuthStatusEnum::BAD_CREDENTIALS;
       return false;
     }
-    
-    if ( !$this->checkPassword($credentials, $hashed_password) ){
-      $response->status = Authentication::BAD_PASS;
+
+    if (!\password_verify($credentials['password'], $this->getHashedPassword($credentials))) {
+      $response->status = AuthStatusEnum::BAD_PASS;
       return false;
     }
-    
-    $response->type   = 'Basic';
-    $response->status = Authentication::SUCCESS;
+
+    $response->type = 'Basic';
+    $response->status = AuthStatusEnum::SUCCESS;
+
     return true;
   }
-  
-  /**
-   * Get the wanted hashed password
-   * 
-   * @param   array       $credentials  Key/value pairs holding the user credentials
-   * @return   string      The user hashed password
-   */
-  protected function getHashedPassword(array $credentials)
+
+  protected function getHashedPassword(array $credentials): string
   {
-    return isset($this->password) ? $this->password : '';
+    return $this->password;
   }
 }

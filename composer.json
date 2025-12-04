@@ -1,12 +1,13 @@
 {
     "name": "jdz/authentication",
     "type": "library",
-    "description": "Authentication",
-    "keywords": ["authentication"],
+    "description": "Basic Authentication Library",
+    "keywords": [
+        "JDZ",
+        "authentication"
+    ],
     "homepage": "https://github.com/joffreydemetz/authentication/",
-    "version": "2.1.0",
     "license": "MIT",
-  
     "authors": [
         {
             "name": "Joffrey Demetz",
@@ -15,14 +16,29 @@
             "role": "Lead"
         }
     ],
-    
     "require": {
-        "php": "^8"
+        "php": "^8.0"
     },
-
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "suggest": {
+        "ext-pdo": "For DatabaseConnector support",
+        "ext-pdo_sqlite": "For SQLite support in DatabaseConnector",
+        "ext-pdo_mysql": "For MySQL support in DatabaseConnector"
+    },
     "autoload": {
         "psr-4": {
             "JDZ\\Authentication\\": "src"
         }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "JDZ\\Authentication\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "phpunit --colors=always --testdox",
+        "test-coverage": "phpunit --coverage-html coverage"
     }
 }
