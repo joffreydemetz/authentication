@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
@@ -7,59 +8,46 @@
 
 namespace JDZ\Authentication\Connector;
 
+use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
-use JDZ\Authentication\AuthenticationResponse;
 
-class BasicConnector extends Connector
+class BasicConnector extends AbstractConnector
 {
-  protected string $username;
-  protected string $password;
+    protected string $name = 'basic';
+    protected string $identifier;
+    protected string $password;
 
-  public function __construct(string $username, string $password)
-  {
-    $this->username = $username;
-    $this->password = $password;
+    public function __construct(string $identifier, string $password)
+    {
+        if ($identifier === '' || $password === '') {
+            throw new \InvalidArgumentException('Identifier and password must be provided.');
+        }
 
-    if ($this->username === '' || $this->password === '') {
-      throw new \InvalidArgumentException('Username and password must be set in the configuration.');
+        $this->identifier = $identifier;
+
+        // Hash the password if not already hashed
+        if (!password_get_info($password)['algo']) {
+            $this->password = password_hash($password, PASSWORD_DEFAULT);
+        } else {
+            $this->password = $password;
+        }
     }
 
-    // check if the password is hashed, if not hash it
-    if (!\password_get_info($this->password)['algo']) {
-      $this->password = \password_hash($this->password, \PASSWORD_DEFAULT);
+    public function authenticate(array $credentials): AuthenticationResult
+    {
+        $identifier = $credentials['identifier'] ?? '';
+        $password = $credentials['password'] ?? '';
+
+        if ($identifier !== $this->identifier) {
+            return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
+        }
+
+        if (!$this->verifyPassword($password, $this->password)) {
+            return $this->createFailureResult(AuthStatusEnum::INVALID_PASSWORD);
+        }
+
+        return $this->createSuccessResult(null, [
+            'username' => $this->identifier,
+        ]);
     }
-  }
-
-  public function authenticate(array $credentials, AuthenticationResponse $response): bool
-  {
-    if (empty($credentials['username'])) {
-      $response->status = AuthStatusEnum::EMPTY_USER;
-      return false;
-    }
-
-    if (empty($credentials['password'])) {
-      $response->status = AuthStatusEnum::EMPTY_PASS;
-      return false;
-    }
-
-    if ($credentials['username'] !== $this->username) {
-      $response->status = AuthStatusEnum::BAD_CREDENTIALS;
-      return false;
-    }
-
-    if (!\password_verify($credentials['password'], $this->getHashedPassword($credentials))) {
-      $response->status = AuthStatusEnum::BAD_PASS;
-      return false;
-    }
-
-    $response->type = 'Basic';
-    $response->status = AuthStatusEnum::SUCCESS;
-
-    return true;
-  }
-
-  protected function getHashedPassword(array $credentials): string
-  {
-    return $this->password;
-  }
 }

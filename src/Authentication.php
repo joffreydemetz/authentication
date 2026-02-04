@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
@@ -7,59 +8,85 @@
 
 namespace JDZ\Authentication;
 
-use JDZ\Authentication\Connector\Connector;
+use JDZ\Authentication\Connector\ConnectorInterface;
 
 class Authentication
 {
-  protected array $connectors;
+    /** @var array{connector: ConnectorInterface, priority: int}[] */
+    protected array $connectors = [];
 
-  /**
-   * Constructor
-   * 
-   * @param   array   $config   Key/value pairs
-   */
-  public function __construct(array $config = [])
-  {
-    foreach ($config as $key => $value) {
-      $this->{$key} = $value;
+    public function addConnector(ConnectorInterface $connector, int $priority = 0): static
+    {
+        $this->connectors[] = [
+            'connector' => $connector,
+            'priority' => $priority,
+        ];
+
+        usort($this->connectors, fn($a, $b) => $b['priority'] <=> $a['priority']);
+
+        return $this;
     }
 
-    $this->connectors = [];
-  }
+    public function authenticate(array $credentials): AuthenticationResult
+    {
+        $identifier = trim($credentials['identifier'] ?? $credentials['email'] ?? $credentials['username'] ?? '');
+        $password = $credentials['password'] ?? '';
 
-  public function addConnector(Connector $connector): self
-  {
-    $this->connectors[] = $connector;
-    return $this;
-  }
+        if (empty($identifier)) {
+            return AuthenticationResult::failure(AuthStatusEnum::EMPTY_IDENTIFIER);
+        }
 
-  /**
-   * Prepare authentication
-   * 
-   * @param   array  $credentials  Array holding the user credentials
-   * @return   Response
-   */
-  public function authenticate(array $credentials)
-  {
-    $response = new AuthenticationResponse();
+        if (empty($password)) {
+            return AuthenticationResult::failure(AuthStatusEnum::EMPTY_PASSWORD);
+        }
 
-    if (empty($credentials['username'])) {
-      $response->status = AuthStatusEnum::EMPTY_USER;
-      return $response;
+        $normalizedCredentials = [
+            'identifier' => $identifier,
+            'password' => $password,
+        ];
+
+        foreach ($this->connectors as $entry) {
+            $connector = $entry['connector'];
+
+            if (!$connector->supports($normalizedCredentials)) {
+                continue;
+            }
+
+            $result = $connector->authenticate($normalizedCredentials);
+
+            if ($result->isSuccess()) {
+                $result->setIdentifier($identifier);
+                return $result;
+            }
+
+            // If connector explicitly handled this (not just "not found"), stop here
+            if ($result->getStatus() !== AuthStatusEnum::USER_NOT_FOUND) {
+                return $result;
+            }
+        }
+
+        return AuthenticationResult::failure(
+            AuthStatusEnum::USER_NOT_FOUND,
+            'Invalid credentials'
+        );
     }
 
-    if (empty($credentials['password'])) {
-      $response->status = AuthStatusEnum::EMPTY_PASS;
-      return $response;
+    public function supports(array $credentials): bool
+    {
+        foreach ($this->connectors as $entry) {
+            if ($entry['connector']->supports($credentials)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    $connectors = array_reverse($this->connectors);
-    foreach ($connectors as $connector) {
-      if ($connector->authenticate($credentials, $response)) {
-        break;
-      }
+    /**
+     * @return ConnectorInterface[]
+     */
+    public function getConnectors(): array
+    {
+        return array_map(fn($entry) => $entry['connector'], $this->connectors);
     }
-
-    return $response;
-  }
 }

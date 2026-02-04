@@ -21,8 +21,28 @@ composer require jdz/authentication
 
 ## Requirements
 
-- PHP 8.0 or higher
-- Composer
+- PHP 8.1 or higher
+
+## Quick Start
+
+```php
+use JDZ\Authentication\Authentication;
+use JDZ\Authentication\Connector\BasicConnector;
+
+$auth = new Authentication();
+$auth->addConnector(new BasicConnector('admin', 'secret123'));
+
+$result = $auth->authenticate([
+    'identifier' => 'admin',
+    'password' => 'secret123',
+]);
+
+if ($result->isSuccess()) {
+    echo "Welcome, " . $result->getUsername();
+} else {
+    echo "Error: " . $result->getMessage();
+}
+```
 
 ## Examples
 
@@ -53,7 +73,7 @@ php examples/01-basic-authentication.php
 
 Demonstrates:
 - Creating a basic authentication instance
-- Using BasicConnector for simple username/password authentication
+- Using BasicConnector for simple identifier/password authentication
 - Testing various authentication scenarios (valid, invalid, missing credentials)
 - Checking authentication status and error messages
 
@@ -66,9 +86,9 @@ Demonstrates:
 
 Demonstrates:
 - Adding multiple connectors to a single authentication instance
-- How connectors are tried in reverse order
+- How connectors are tried by priority order
 - Authenticating different users with different credentials
-- Converting response to array format
+- Converting result to array format
 
 **Use Case**: Applications supporting multiple authentication methods or user sources.
 
@@ -78,7 +98,7 @@ Demonstrates:
 **Database Authentication with PDO**
 
 Demonstrates:
-- Creating a custom DatabaseConnector implementation
+- Creating a custom connector by extending AbstractConnector
 - Using PDO for database queries
 - Storing and verifying hashed passwords
 - Setting up and testing with SQLite (easily adaptable to MySQL/PostgreSQL)
@@ -89,7 +109,7 @@ Demonstrates:
 **Key Points**:
 - Uses `password_hash()` and `password_verify()` for secure password storage
 - Demonstrates proper PDO usage with prepared statements
-- Shows how to extend DatabaseConnector
+- Shows how to create custom connectors
 
 ---
 
@@ -97,7 +117,7 @@ Demonstrates:
 **Error Handling with Exceptions**
 
 Demonstrates:
-- Creating custom authentication exceptions
+- Using the built-in AuthenticationException
 - Proper exception handling patterns
 - Silent mode authentication (without exceptions)
 - Custom error message mapping
@@ -116,16 +136,16 @@ Demonstrates:
 **Advanced MySQL Authentication with User Data**
 
 Demonstrates:
-- Advanced DatabaseConnector with additional features
+- Advanced custom connector with additional features
 - Loading user profile data during authentication
 - Checking user account status (active/inactive)
-- Populating AuthenticationResponse with user details
+- Populating AuthenticationResult with user details
 - Production-ready MySQL connector implementation
 
 **Use Case**: Full-featured applications requiring user profile data, account status checks, and multi-language support.
 
 **Key Points**:
-- Shows how to extend authenticate() method
+- Shows how to implement custom authenticate() method
 - Demonstrates loading additional user data
 - Includes account status validation
 - Multi-language support example
@@ -148,39 +168,68 @@ composer test
 vendor/bin/phpunit
 ```
 
-The test suite includes **30 tests** with **65 assertions**:
+The test suite includes **59 tests** with **143 assertions**:
 
-- **AuthStatusEnumTest** (6 tests): Tests for the authentication status enum code() and message() methods
-- **AuthenticationResponseTest** (3 tests): Tests for the authentication response object and toArray() conversion
-- **AuthenticationTest** (7 tests): Tests for the main authentication class including empty credentials validation and connector flow
-- **BasicConnectorTest** (7 tests): Tests for the basic authentication connector including constructor validation and authentication scenarios
-- **DatabaseConnectorTest** (4 tests): Tests for the database authentication connector using anonymous classes
+- **AuthStatusEnumTest** (9 tests): Tests for the authentication status enum values and methods
+- **AuthenticationResultTest** (12 tests): Tests for the authentication result object, factory methods, and toArray() conversion
+- **AuthenticationTest** (13 tests): Tests for the main authentication class including credentials normalization, priority, and connector flow
+- **BasicConnectorTest** (11 tests): Tests for the basic authentication connector including constructor validation and authentication scenarios
+- **DatabaseConnectorTest** (14 tests): Tests for the database authentication connector using mocked DatabaseInterface
 
 ## Authentication Status
 
 The library uses `AuthStatusEnum` for type-safe status handling:
 
-| Status | Code | Description |
-|--------|------|-------------|
-| `FAILURE` | 0 | Authentication failed (initial status) |
+| Status | Value | Description |
+|--------|-------|-------------|
+| `FAILURE` | 0 | Authentication failed (generic) |
 | `SUCCESS` | 1 | Successful authentication |
-| `EMPTY_USER` | 2 | Missing username in credentials |
-| `EMPTY_PASS` | 3 | Missing password in credentials |
-| `BAD_CREDENTIALS` | 4 | Account not found |
-| `BAD_PASS` | 5 | Invalid password |
+| `EMPTY_IDENTIFIER` | 2 | Missing identifier (email/username) in credentials |
+| `EMPTY_PASSWORD` | 3 | Missing password in credentials |
+| `USER_NOT_FOUND` | 4 | User account not found |
+| `INVALID_PASSWORD` | 5 | Invalid password |
+| `USER_BANNED` | 6 | Account has been suspended |
+| `USER_NOT_CONFIRMED` | 7 | Email not confirmed |
+| `ACCOUNT_LOCKED` | 8 | Account locked due to failed attempts |
 
 Each status provides:
-- `code()` - Returns the integer status code
+- `value` - Returns the integer status code
 - `message()` - Returns the descriptive error message
-- `name` - The enum case name (e.g., "SUCCESS", "BAD_PASS")
+- `isSuccess()` - Returns true only for SUCCESS status
+- `name` - The enum case name (e.g., "SUCCESS", "INVALID_PASSWORD")
 
 Example usage:
 ```php
-$response = $auth->authenticate($credentials);
+$result = $auth->authenticate($credentials);
 
-echo "Status Code: " . $response->status->code();     // 5
-echo "Message: " . $response->status->message();      // "Invalid password"
-echo "Name: " . $response->status->name;              // "BAD_PASS"
+if ($result->isSuccess()) {
+    echo "User ID: " . $result->getUserId();
+    echo "Email: " . $result->getEmail();
+} else {
+    echo "Status Code: " . $result->getStatus()->value;      // 5
+    echo "Message: " . $result->getStatus()->message();      // "Invalid password"
+    echo "Name: " . $result->getStatus()->name;              // "INVALID_PASSWORD"
+}
+```
+
+## AuthenticationResult
+
+The `AuthenticationResult` object provides the following methods:
+
+```php
+$result->isSuccess();       // bool - Check if authentication succeeded
+$result->getStatus();       // AuthStatusEnum - Get the status enum
+$result->getMessage();      // string - Get error message (or status message)
+$result->getUserId();       // ?int - Get user ID (if available)
+$result->getIdentifier();   // string - Get the identifier used
+$result->getEmail();        // string - Get user email
+$result->getUsername();     // string - Get username
+$result->getFirstname();    // string - Get first name
+$result->getLastname();     // string - Get last name
+$result->getFullname();     // string - Get full name (or fallback to email/identifier)
+$result->getType();         // string - Get connector type (e.g., "basic", "database")
+$result->get($key);         // mixed - Get custom data
+$result->toArray();         // array - Convert to array
 ```
 
 ## License

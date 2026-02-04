@@ -1,5 +1,7 @@
 composer.lock
 /vendor/
 
-.phpunit.result.cache
+/.claude/
+
+/.phpunit.cache/
 /coverage/

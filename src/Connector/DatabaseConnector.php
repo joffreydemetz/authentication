@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
  * @license   MIT License; <https://opensource.org/licenses/MIT>
@@ -7,49 +9,95 @@
 
 namespace JDZ\Authentication\Connector;
 
+use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
-use JDZ\Authentication\AuthenticationResponse;
+use JDZ\Database\DatabaseInterface;
+use JDZ\Database\Query\SelectQuery;
 
-abstract class DatabaseConnector extends Connector
+class DatabaseConnector extends AbstractConnector
 {
-  protected string $tbl_name;
-  protected string $tbl_username_column;
-  protected string $tbl_pass_column;
+    protected string $name = 'database';
 
-  public function __construct(string $tbl_name, string $tbl_username_column, string $tbl_pass_column)
-  {
-    $this->tbl_name = $tbl_name;
-    $this->tbl_username_column = $tbl_username_column;
-    $this->tbl_pass_column = $tbl_pass_column;
+    protected DatabaseInterface $database;
 
-    if ($this->tbl_name === '' || $this->tbl_username_column === '' || $this->tbl_pass_column === '') {
-      throw new \InvalidArgumentException('Table name, username column and password column must be set in the configuration.');
-    }
-  }
+    protected string $table = 'user';
+    protected string $identifierColumn = 'email';
+    protected string $passwordColumn = 'password';
 
-  public function authenticate(array $credentials, AuthenticationResponse $response): bool
-  {
-    $hashed_password = $this->getHashedPassword($credentials);
+    public function __construct(DatabaseInterface $database, array $options = [])
+    {
+        $this->database = $database;
 
-    if (empty($hashed_password)) {
-      $response->status = AuthStatusEnum::BAD_CREDENTIALS;
-      return false;
+        foreach ($options as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->$key = $value;
+            }
+        }
     }
 
-    if (!$this->checkPassword($credentials, $hashed_password)) {
-      $response->status = AuthStatusEnum::BAD_PASS;
-      return false;
+    public function authenticate(array $credentials): AuthenticationResult
+    {
+        $identifier = $credentials['identifier'] ?? '';
+        $password = $credentials['password'] ?? '';
+
+        $user = $this->findUser($identifier);
+
+        if ($user === null) {
+            return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
+        }
+
+        $hashedPassword = $user[$this->passwordColumn] ?? '';
+
+        if (!$this->verifyPassword($password, $hashedPassword)) {
+            return $this->createFailureResult(AuthStatusEnum::INVALID_PASSWORD);
+        }
+
+        return $this->createSuccessResult(
+            isset($user['id']) ? (int) $user['id'] : null,
+            $user
+        );
     }
 
-    $response->type = 'Database';
-    $response->status = AuthStatusEnum::SUCCESS;
+    protected function findUser(string $identifier): ?array
+    {
+        $columns = [
+            'id',
+            $this->identifierColumn,
+            $this->passwordColumn,
+            'email',
+            'username',
+            'firstname',
+            'lastname',
+        ];
 
-    return true;
-  }
+        $query = (new SelectQuery())
+            ->select(array_unique($columns))
+            ->from('#__' . $this->table)
+            ->where($this->identifierColumn . ' = :identifier')
+            ->bindParam(':identifier', $identifier);
 
-  protected function getHashedPassword(array $credentials): string
-  {
-    // This method should be implemented to retrieve the hashed password from the database
-    throw new \RuntimeException('Method getHashedPassword() must be implemented in the subclass.');
-  }
+        $this->database->setQuery($query);
+
+        $result = $this->database->loadAssoc();
+
+        return $result ?: null;
+    }
+
+    public function setTable(string $table): static
+    {
+        $this->table = $table;
+        return $this;
+    }
+
+    public function setIdentifierColumn(string $column): static
+    {
+        $this->identifierColumn = $column;
+        return $this;
+    }
+
+    public function setPasswordColumn(string $column): static
+    {
+        $this->passwordColumn = $column;
+        return $this;
+    }
 }

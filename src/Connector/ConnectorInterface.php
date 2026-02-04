@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
@@ -7,9 +8,13 @@
 
 namespace JDZ\Authentication\Connector;
 
-use JDZ\Authentication\AuthenticationResponse;
+use JDZ\Authentication\AuthenticationResult;
 
 interface ConnectorInterface
 {
-  public function authenticate(array $credentials, AuthenticationResponse $response): bool;
+    public function authenticate(array $credentials): AuthenticationResult;
+
+    public function supports(array $credentials): bool;
+
+    public function getName(): string;
 }
