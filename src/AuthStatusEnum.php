@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * @author    Joffrey Demetz <joffrey.demetz@gmail.com>
@@ -7,42 +8,35 @@
 
 namespace JDZ\Authentication;
 
-enum AuthStatusEnum
+enum AuthStatusEnum: int
 {
-  case FAILURE;         // 0 -- Failed request (initial status)
-  case SUCCESS;         // 1 -- Successful response
-  case EMPTY_USER;      // 2 -- Missing login
-  case EMPTY_PASS;      // 3 -- Missing password 
-  case BAD_CREDENTIALS; // 4 -- Account not found
-  case BAD_PASS;        // 5 -- Invalid password
+    case FAILURE = 0;
+    case SUCCESS = 1;
+    case EMPTY_IDENTIFIER = 2;
+    case EMPTY_PASSWORD = 3;
+    case USER_NOT_FOUND = 4;
+    case INVALID_PASSWORD = 5;
+    case USER_BANNED = 6;
+    case USER_NOT_CONFIRMED = 7;
+    case ACCOUNT_LOCKED = 8;
 
-  /**
-   * Get the code the status
-   */
-  public function code(): int
-  {
-    return match ($this) {
-      self::FAILURE => 0,
-      self::SUCCESS => 1,
-      self::EMPTY_USER => 2,
-      self::EMPTY_PASS => 3,
-      self::BAD_CREDENTIALS => 4,
-      self::BAD_PASS => 5,
-    };
-  }
+    public function message(): string
+    {
+        return match ($this) {
+            self::FAILURE => 'Authentication failed',
+            self::SUCCESS => 'Authentication successful',
+            self::EMPTY_IDENTIFIER => 'Please enter your email or username',
+            self::EMPTY_PASSWORD => 'Please enter your password',
+            self::USER_NOT_FOUND => 'Invalid credentials',
+            self::INVALID_PASSWORD => 'Invalid password',
+            self::USER_BANNED => 'Your account has been suspended',
+            self::USER_NOT_CONFIRMED => 'Please confirm your email address',
+            self::ACCOUNT_LOCKED => 'Account temporarily locked due to too many failed attempts',
+        };
+    }
 
-  /**
-   * Get the text message for the status
-   */
-  public function message(): string
-  {
-    return match ($this) {
-      self::FAILURE => 'Authentication failed',
-      self::SUCCESS => '',
-      self::EMPTY_USER => 'Missing username in credentials',
-      self::EMPTY_PASS => 'Missing password in credentials',
-      self::BAD_CREDENTIALS => 'Bad credentials',
-      self::BAD_PASS => 'Invalid password',
-    };
-  }
+    public function isSuccess(): bool
+    {
+        return $this === self::SUCCESS;
+    }
 }

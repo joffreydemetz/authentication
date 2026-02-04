@@ -2,15 +2,14 @@
 
 /**
  * Example 2: Multiple Connectors
- * 
+ *
  * This example shows how to use multiple authentication connectors.
- * The authentication tries each connector in reverse order until one succeeds.
+ * The authentication tries each connector in priority order until one succeeds.
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use JDZ\Authentication\Authentication;
-use JDZ\Authentication\AuthStatusEnum;
 use JDZ\Authentication\Connector\BasicConnector;
 
 // Create authentication instance
@@ -32,26 +31,26 @@ echo "Available users: admin, user, guest\n\n";
 
 // Test different users
 $testUsers = [
-    ['username' => 'admin', 'password' => 'admin123'],
-    ['username' => 'user', 'password' => 'user123'],
-    ['username' => 'guest', 'password' => 'guest123'],
-    ['username' => 'unknown', 'password' => 'test123'],
+    ['identifier' => 'admin', 'password' => 'admin123'],
+    ['identifier' => 'user', 'password' => 'user123'],
+    ['identifier' => 'guest', 'password' => 'guest123'],
+    ['identifier' => 'unknown', 'password' => 'test123'],
 ];
 
 foreach ($testUsers as $credentials) {
-    echo "Testing user: {$credentials['username']}\n";
+    echo "Testing user: {$credentials['identifier']}\n";
 
-    $response = $auth->authenticate($credentials);
+    $result = $auth->authenticate($credentials);
 
-    if ($response->status === AuthStatusEnum::SUCCESS) {
-        echo "  ✓ Success! (Type: {$response->type})\n";
+    if ($result->isSuccess()) {
+        echo "  ✓ Success! (Type: {$result->getType()})\n";
     } else {
-        echo "  ✗ Failed: {$response->status->message()}\n";
+        echo "  ✗ Failed: {$result->getStatus()->message()}\n";
     }
     echo "\n";
 }
 
 echo "=== Response Array Format ===\n";
-$credentials = ['username' => 'admin', 'password' => 'admin123'];
-$response = $auth->authenticate($credentials);
-print_r($response->toArray());
+$credentials = ['identifier' => 'admin', 'password' => 'admin123'];
+$result = $auth->authenticate($credentials);
+print_r($result->toArray());

@@ -2,88 +2,98 @@
 
 /**
  * Example 5: Custom Database Connector with MySQL
- * 
+ *
  * This example shows how to create a more advanced database connector
- * with MySQL/MariaDB including additional user data retrieval.
+ * with MySQL/MariaDB including additional user data retrieval and
+ * account status checking.
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use JDZ\Authentication\Authentication;
-use JDZ\Authentication\AuthenticationResponse;
+use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
-use JDZ\Authentication\Connector\DatabaseConnector;
+use JDZ\Authentication\Connector\AbstractConnector;
 
 /**
- * Advanced MySQL Authenticator with user data loading
+ * Advanced MySQL Authenticator with user data loading and account status
  */
-class MySQLAuthenticator extends DatabaseConnector
+class MySQLConnector extends AbstractConnector
 {
+    protected string $name = 'mysql';
     protected \PDO $pdo;
+    protected string $table;
+    protected string $identifierColumn;
+    protected string $passwordColumn;
 
-    public function __construct(array $config, \PDO $pdo)
+    public function __construct(\PDO $pdo, array $config = [])
     {
-        // Config should contain: tbl_name, tbl_username_column, tbl_pass_column
-        parent::__construct(
-            $config['tbl_name'],
-            $config['tbl_username_column'],
-            $config['tbl_pass_column']
+        $this->pdo = $pdo;
+        $this->table = $config['table'] ?? 'users';
+        $this->identifierColumn = $config['identifier_column'] ?? 'email';
+        $this->passwordColumn = $config['password_column'] ?? 'password';
+    }
+
+    public function authenticate(array $credentials): AuthenticationResult
+    {
+        $identifier = $credentials['identifier'] ?? '';
+        $password = $credentials['password'] ?? '';
+
+        $user = $this->findUser($identifier);
+
+        if ($user === null) {
+            return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
+        }
+
+        // Check if user is active
+        if (isset($user['active']) && !$user['active']) {
+            return $this->createFailureResult(AuthStatusEnum::USER_BANNED);
+        }
+
+        $hashedPassword = $user[$this->passwordColumn] ?? '';
+
+        if (!$this->verifyPassword($password, $hashedPassword)) {
+            return $this->createFailureResult(AuthStatusEnum::INVALID_PASSWORD);
+        }
+
+        $result = $this->createSuccessResult(
+            isset($user['id']) ? (int) $user['id'] : null,
+            $user
         );
 
-        $this->pdo = $pdo;
-    }
-
-    protected function getHashedPassword(array $credentials): string
-    {
-        $sql = "SELECT {$this->tbl_pass_column} 
-                FROM {$this->tbl_name} 
-                WHERE {$this->tbl_username_column} = :username 
-                AND active = 1";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['username' => $credentials['username']]);
-        $result = $stmt->fetchColumn();
-
-        return $result ? (string)$result : '';
-    }
-
-    /**
-     * Override authenticate to load additional user data
-     */
-    public function authenticate(array $credentials, AuthenticationResponse $response): bool
-    {
-        // Call parent authentication
-        $authenticated = parent::authenticate($credentials, $response);
-
-        // If successful, load user data
-        if ($authenticated) {
-            $this->loadUserData($credentials['username'], $response);
+        // Add language preference to custom data
+        if (isset($user['language'])) {
+            $result->set('language', $user['language']);
         }
 
-        return $authenticated;
+        return $result;
     }
 
-    /**
-     * Load additional user data into the response
-     */
-    protected function loadUserData(string $username, AuthenticationResponse $response): void
+    protected function findUser(string $identifier): ?array
     {
-        $sql = "SELECT email, firstname, lastname, language 
-                FROM {$this->tbl_name} 
-                WHERE {$this->tbl_username_column} = :username";
+        $columns = array_unique([
+            'id',
+            $this->identifierColumn,
+            $this->passwordColumn,
+            'email',
+            'username',
+            'firstname',
+            'lastname',
+            'language',
+            'active',
+        ]);
+
+        $columnList = implode(', ', $columns);
+
+        $sql = "SELECT {$columnList}
+                FROM {$this->table}
+                WHERE {$this->identifierColumn} = :identifier";
 
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['username' => $username]);
-        $user = $stmt->fetch();
+        $stmt->execute(['identifier' => $identifier]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if ($user) {
-            $response->username = $username;
-            $response->email = $user['email'] ?? '';
-            $response->firstname = $user['firstname'] ?? '';
-            $response->lastname = $user['lastname'] ?? '';
-            $response->fullname = trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''));
-            $response->language = $user['language'] ?? 'en-US';
-        }
+        return $result ?: null;
     }
 }
 
@@ -91,7 +101,7 @@ echo "=== Advanced MySQL Authentication Example ===\n\n";
 
 // Check if SQLite PDO driver is available
 if (!in_array('sqlite', \PDO::getAvailableDrivers())) {
-    echo "⚠ SQLite PDO driver is not available.\n";
+    echo "SQLite PDO driver is not available.\n";
     echo "This example requires PDO SQLite extension.\n\n";
     echo "Available PDO drivers: " . implode(', ', \PDO::getAvailableDrivers()) . "\n\n";
     echo "To run this example:\n";
@@ -114,6 +124,7 @@ try {
         CREATE TABLE users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email VARCHAR(255) NOT NULL UNIQUE,
+            username VARCHAR(255),
             password VARCHAR(255) NOT NULL,
             firstname VARCHAR(100) NOT NULL,
             lastname VARCHAR(100) NOT NULL,
@@ -125,31 +136,31 @@ try {
     // Insert test users
     echo "2. Creating test users...\n";
     $stmt = $pdo->prepare("
-        INSERT INTO users (email, password, firstname, lastname, language, active) 
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO users (email, username, password, firstname, lastname, language, active)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
 
     $users = [
-        ['admin@example.com', password_hash('admin123', PASSWORD_DEFAULT), 'Admin', 'User', 'en-US', 1],
-        ['john@example.com', password_hash('john123', PASSWORD_DEFAULT), 'John', 'Doe', 'en-US', 1],
-        ['marie@example.com', password_hash('marie123', PASSWORD_DEFAULT), 'Marie', 'Dupont', 'fr-FR', 1],
-        ['inactive@example.com', password_hash('test123', PASSWORD_DEFAULT), 'Inactive', 'User', 'en-US', 0],
+        ['admin@example.com', 'admin', password_hash('admin123', PASSWORD_DEFAULT), 'Admin', 'User', 'en-US', 1],
+        ['john@example.com', 'john', password_hash('john123', PASSWORD_DEFAULT), 'John', 'Doe', 'en-US', 1],
+        ['marie@example.com', 'marie', password_hash('marie123', PASSWORD_DEFAULT), 'Marie', 'Dupont', 'fr-FR', 1],
+        ['inactive@example.com', 'inactive', password_hash('test123', PASSWORD_DEFAULT), 'Inactive', 'User', 'en-US', 0],
     ];
 
     foreach ($users as $user) {
         $stmt->execute($user);
-        echo "   - Created: {$user[2]} {$user[3]} ({$user[0]})\n";
+        echo "   - Created: {$user[3]} {$user[4]} ({$user[0]})\n";
     }
 
     // Setup authentication
     echo "\n3. Configuring authentication...\n";
     $auth = new Authentication();
 
-    $dbConnector = new MySQLAuthenticator([
-        'tbl_name' => 'users',
-        'tbl_username_column' => 'email',
-        'tbl_pass_column' => 'password',
-    ], $pdo);
+    $dbConnector = new MySQLConnector($pdo, [
+        'table' => 'users',
+        'identifier_column' => 'email',
+        'password_column' => 'password',
+    ]);
 
     $auth->addConnector($dbConnector);
 
@@ -157,50 +168,51 @@ try {
     echo "\n4. Testing authentication...\n\n";
 
     $credentials = [
-        'username' => 'marie@example.com',
-        'password' => 'marie123'
+        'identifier' => 'marie@example.com',
+        'password' => 'marie123',
     ];
 
-    echo "Authenticating: {$credentials['username']}\n";
-    $response = $auth->authenticate($credentials);
+    echo "Authenticating: {$credentials['identifier']}\n";
+    $result = $auth->authenticate($credentials);
 
-    if ($response->status === AuthStatusEnum::SUCCESS) {
+    if ($result->isSuccess()) {
         echo "✓ Authentication successful!\n\n";
         echo "User Details:\n";
-        echo "  - Username: {$response->username}\n";
-        echo "  - Email: {$response->email}\n";
-        echo "  - Full Name: {$response->fullname}\n";
-        echo "  - First Name: {$response->firstname}\n";
-        echo "  - Last Name: {$response->lastname}\n";
-        echo "  - Language: {$response->language}\n";
-        echo "  - Type: {$response->type}\n";
+        echo "  - User ID: {$result->getUserId()}\n";
+        echo "  - Identifier: {$result->getIdentifier()}\n";
+        echo "  - Email: {$result->getEmail()}\n";
+        echo "  - Full Name: {$result->getFullname()}\n";
+        echo "  - First Name: {$result->getFirstname()}\n";
+        echo "  - Last Name: {$result->getLastname()}\n";
+        echo "  - Language: {$result->get('language')}\n";
+        echo "  - Type: {$result->getType()}\n";
     } else {
         echo "✗ Authentication failed\n";
-        echo "  Status: {$response->status->message()}\n";
+        echo "  Status: {$result->getStatus()->message()}\n";
     }
 
     // Test inactive user
     echo "\n\n5. Testing inactive user...\n";
     $credentials = [
-        'username' => 'inactive@example.com',
-        'password' => 'test123'
+        'identifier' => 'inactive@example.com',
+        'password' => 'test123',
     ];
 
-    echo "Authenticating: {$credentials['username']}\n";
-    $response = $auth->authenticate($credentials);
+    echo "Authenticating: {$credentials['identifier']}\n";
+    $result = $auth->authenticate($credentials);
 
-    if ($response->status === AuthStatusEnum::SUCCESS) {
+    if ($result->isSuccess()) {
         echo "✓ Authentication successful!\n";
     } else {
         echo "✗ Authentication failed (inactive users cannot login)\n";
-        echo "  Status: {$response->status->message()}\n";
+        echo "  Status: {$result->getStatus()->message()}\n";
     }
 
     // Show full response array
     echo "\n\n6. Complete Response Array:\n";
-    $credentials = ['username' => 'john@example.com', 'password' => 'john123'];
-    $response = $auth->authenticate($credentials);
-    print_r($response->toArray());
+    $credentials = ['identifier' => 'john@example.com', 'password' => 'john123'];
+    $result = $auth->authenticate($credentials);
+    print_r($result->toArray());
 } catch (\PDOException $e) {
     echo "Database Error: " . $e->getMessage() . "\n";
 } catch (\Exception $e) {
