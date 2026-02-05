@@ -23,6 +23,11 @@ class DatabaseConnector extends AbstractConnector
     protected string $table = 'user';
     protected string $identifierColumn = 'email';
     protected string $passwordColumn = 'password';
+    protected string $bannedColumn = 'banned';
+    protected string $confirmedColumn = 'confirmed';
+
+    protected bool $checkBanned = false;
+    protected bool $checkConfirmed = false;
 
     public function __construct(DatabaseInterface $database, array $options = [])
     {
@@ -52,6 +57,14 @@ class DatabaseConnector extends AbstractConnector
             return $this->createFailureResult(AuthStatusEnum::INVALID_PASSWORD);
         }
 
+        if ($this->checkBanned && !empty($user[$this->bannedColumn])) {
+            return $this->createFailureResult(AuthStatusEnum::USER_BANNED);
+        }
+
+        if ($this->checkConfirmed && empty($user[$this->confirmedColumn])) {
+            return $this->createFailureResult(AuthStatusEnum::USER_NOT_CONFIRMED);
+        }
+
         return $this->createSuccessResult(
             isset($user['id']) ? (int) $user['id'] : null,
             $user
@@ -69,6 +82,14 @@ class DatabaseConnector extends AbstractConnector
             'firstname',
             'lastname',
         ];
+
+        if ($this->checkBanned) {
+            $columns[] = $this->bannedColumn;
+        }
+
+        if ($this->checkConfirmed) {
+            $columns[] = $this->confirmedColumn;
+        }
 
         $query = (new SelectQuery())
             ->select(array_unique($columns))
@@ -98,6 +119,18 @@ class DatabaseConnector extends AbstractConnector
     public function setPasswordColumn(string $column): static
     {
         $this->passwordColumn = $column;
+        return $this;
+    }
+
+    public function setCheckBanned(bool $check): static
+    {
+        $this->checkBanned = $check;
+        return $this;
+    }
+
+    public function setCheckConfirmed(bool $check): static
+    {
+        $this->checkConfirmed = $check;
         return $this;
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -6,15 +7,13 @@ declare(strict_types=1);
  * @license   MIT License; <https://opensource.org/licenses/MIT>
  */
 
-namespace JDZ\Authentication\Connector;
+namespace JDZ\Authentication\Contract;
 
 use JDZ\Authentication\AuthenticationResult;
 
 interface ConnectorInterface
 {
     public function authenticate(array $credentials): AuthenticationResult;
-
     public function supports(array $credentials): bool;
-
     public function getName(): string;
 }
