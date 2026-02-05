@@ -205,4 +205,170 @@ class DatabaseConnectorTest extends TestCase
         $this->assertTrue($result->isSuccess());
         $this->assertNull($result->getUserId());
     }
+
+    public function testAuthenticateBannedUser(): void
+    {
+        $userData = [
+            'id' => 1,
+            'email' => 'test@example.com',
+            'password' => password_hash('correctpass', PASSWORD_DEFAULT),
+            'username' => 'testuser',
+            'firstname' => 'Test',
+            'lastname' => 'User',
+            'banned' => 1,
+        ];
+
+        $database = $this->createMockDatabase($userData);
+        $connector = new DatabaseConnector($database, [
+            'checkBanned' => true,
+        ]);
+
+        $credentials = ['identifier' => 'test@example.com', 'password' => 'correctpass'];
+
+        $result = $connector->authenticate($credentials);
+
+        $this->assertFalse($result->isSuccess());
+        $this->assertSame(AuthStatusEnum::USER_BANNED, $result->getStatus());
+    }
+
+    public function testAuthenticateNotBannedUser(): void
+    {
+        $userData = [
+            'id' => 1,
+            'email' => 'test@example.com',
+            'password' => password_hash('correctpass', PASSWORD_DEFAULT),
+            'username' => 'testuser',
+            'firstname' => 'Test',
+            'lastname' => 'User',
+            'banned' => 0,
+            'confirmed' => 1,
+        ];
+
+        $database = $this->createMockDatabase($userData);
+        $connector = new DatabaseConnector($database, [
+            'checkBanned' => true,
+            'checkConfirmed' => true,
+        ]);
+
+        $credentials = ['identifier' => 'test@example.com', 'password' => 'correctpass'];
+
+        $result = $connector->authenticate($credentials);
+
+        $this->assertTrue($result->isSuccess());
+    }
+
+    public function testAuthenticateUnconfirmedUser(): void
+    {
+        $userData = [
+            'id' => 1,
+            'email' => 'test@example.com',
+            'password' => password_hash('correctpass', PASSWORD_DEFAULT),
+            'username' => 'testuser',
+            'firstname' => 'Test',
+            'lastname' => 'User',
+            'confirmed' => 0,
+        ];
+
+        $database = $this->createMockDatabase($userData);
+        $connector = new DatabaseConnector($database, [
+            'checkConfirmed' => true,
+        ]);
+
+        $credentials = ['identifier' => 'test@example.com', 'password' => 'correctpass'];
+
+        $result = $connector->authenticate($credentials);
+
+        $this->assertFalse($result->isSuccess());
+        $this->assertSame(AuthStatusEnum::USER_NOT_CONFIRMED, $result->getStatus());
+    }
+
+    public function testBannedCheckDisabledByDefault(): void
+    {
+        $userData = [
+            'id' => 1,
+            'email' => 'test@example.com',
+            'password' => password_hash('correctpass', PASSWORD_DEFAULT),
+            'username' => 'testuser',
+            'firstname' => 'Test',
+            'lastname' => 'User',
+            'banned' => 1,
+        ];
+
+        $database = $this->createMockDatabase($userData);
+        $connector = new DatabaseConnector($database);
+
+        $credentials = ['identifier' => 'test@example.com', 'password' => 'correctpass'];
+
+        $result = $connector->authenticate($credentials);
+
+        $this->assertTrue($result->isSuccess());
+    }
+
+    public function testConfirmedCheckDisabledByDefault(): void
+    {
+        $userData = [
+            'id' => 1,
+            'email' => 'test@example.com',
+            'password' => password_hash('correctpass', PASSWORD_DEFAULT),
+            'username' => 'testuser',
+            'firstname' => 'Test',
+            'lastname' => 'User',
+            'confirmed' => 0,
+        ];
+
+        $database = $this->createMockDatabase($userData);
+        $connector = new DatabaseConnector($database);
+
+        $credentials = ['identifier' => 'test@example.com', 'password' => 'correctpass'];
+
+        $result = $connector->authenticate($credentials);
+
+        $this->assertTrue($result->isSuccess());
+    }
+
+    public function testSetCheckBanned(): void
+    {
+        $database = $this->createMockDatabase();
+        $connector = new DatabaseConnector($database);
+
+        $result = $connector->setCheckBanned(true);
+
+        $this->assertSame($connector, $result);
+    }
+
+    public function testSetCheckConfirmed(): void
+    {
+        $database = $this->createMockDatabase();
+        $connector = new DatabaseConnector($database);
+
+        $result = $connector->setCheckConfirmed(true);
+
+        $this->assertSame($connector, $result);
+    }
+
+    public function testCustomBannedColumn(): void
+    {
+        $userData = [
+            'id' => 1,
+            'email' => 'test@example.com',
+            'password' => password_hash('correctpass', PASSWORD_DEFAULT),
+            'username' => 'testuser',
+            'firstname' => 'Test',
+            'lastname' => 'User',
+            'is_blocked' => 1,
+        ];
+
+        $database = $this->createMockDatabase($userData);
+        $connector = new DatabaseConnector($database, [
+            'checkBanned' => true,
+            'bannedColumn' => 'is_blocked',
+        ]);
+
+        $credentials = ['identifier' => 'test@example.com', 'password' => 'correctpass'];
+
+        $result = $connector->authenticate($credentials);
+
+        $this->assertFalse($result->isSuccess());
+        $this->assertSame(AuthStatusEnum::USER_BANNED, $result->getStatus());
+    }
 }

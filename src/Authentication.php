@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -8,9 +9,10 @@ declare(strict_types=1);
 
 namespace JDZ\Authentication;
 
-use JDZ\Authentication\Connector\ConnectorInterface;
+use JDZ\Authentication\Contract\AuthenticationInterface;
+use JDZ\Authentication\Contract\ConnectorInterface;
 
-class Authentication
+class Authentication implements AuthenticationInterface
 {
     /** @var array{connector: ConnectorInterface, priority: int}[] */
     protected array $connectors = [];

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -10,6 +11,7 @@ namespace JDZ\Authentication\Connector;
 
 use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
+use JDZ\Authentication\Contract\ConnectorInterface;
 
 abstract class AbstractConnector implements ConnectorInterface
 {
