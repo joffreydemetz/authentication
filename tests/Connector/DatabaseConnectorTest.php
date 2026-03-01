@@ -10,7 +10,7 @@ namespace JDZ\Authentication\Tests\Connector;
 use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
 use JDZ\Authentication\Connector\DatabaseConnector;
-use JDZ\Database\DatabaseInterface;
+use JDZ\Database\Contract\DatabaseInterface;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseConnectorTest extends TestCase
