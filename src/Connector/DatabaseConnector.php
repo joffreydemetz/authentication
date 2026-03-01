@@ -11,7 +11,7 @@ namespace JDZ\Authentication\Connector;
 
 use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
-use JDZ\Database\DatabaseInterface;
+use JDZ\Database\Contract\DatabaseInterface;
 use JDZ\Database\Query\SelectQuery;
 
 class DatabaseConnector extends AbstractConnector
