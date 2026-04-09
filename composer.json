@@ -44,27 +44,5 @@
     "scripts": {
         "test": "phpunit --colors=always --testdox",
         "test-coverage": "phpunit --coverage-html coverage"
-    },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../database",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "jdz/database": "2.0.999"
-                }
-            }
-        },
-        {
-            "type": "path",
-            "url": "../data",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "jdz/data": "2.0.999"
-                }
-            }
-        }
-    ]
+    }
 }
