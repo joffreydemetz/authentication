@@ -26,6 +26,9 @@ class DatabaseConnector extends AbstractConnector
     protected string $bannedColumn = 'banned';
     protected string $confirmedColumn = 'confirmed';
 
+    /** Optional display columns (username, firstname, ...) — only selected when the table has them. */
+    protected array $extraColumns = [];
+
     protected bool $checkBanned = false;
     protected bool $checkConfirmed = false;
 
@@ -77,10 +80,7 @@ class DatabaseConnector extends AbstractConnector
             'id',
             $this->identifierColumn,
             $this->passwordColumn,
-            'email',
-            'username',
-            'firstname',
-            'lastname',
+            ...$this->extraColumns,
         ];
 
         if ($this->checkBanned) {
@@ -113,6 +113,12 @@ class DatabaseConnector extends AbstractConnector
     public function setIdentifierColumn(string $column): static
     {
         $this->identifierColumn = $column;
+        return $this;
+    }
+
+    public function setExtraColumns(array $columns): static
+    {
+        $this->extraColumns = $columns;
         return $this;
     }
 
