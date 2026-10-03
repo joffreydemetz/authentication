@@ -6,7 +6,8 @@ Simple authentication library with support for multiple authentication connector
 
 - Multiple authentication connectors support
 - Type-safe authentication status enum
-- PDO-based database authentication
+- Database connector built on [jdz/database](https://jdz.joffreydemetz.com/database), with optional banned / unconfirmed checks
+- Array connector (in-memory user list, pluggable password hasher)
 - Basic authentication connector
 - Extensible connector interface
 - Comprehensive test suite
@@ -21,7 +22,8 @@ composer require jdz/authentication
 
 ## Requirements
 
-- PHP 8.1 or higher
+- PHP 8.2 or higher
+- Optional: `jdz/database` (^2.1) — only needed by `DatabaseConnector`
 
 ## Quick Start
 
@@ -44,6 +46,40 @@ if ($result->isSuccess()) {
 }
 ```
 
+Credentials may pass the identifier as `identifier`, `email` or `username`.
+Connectors are tried by descending priority (`addConnector($connector, $priority)`);
+a `USER_NOT_FOUND` result falls through to the next connector, any other
+failure stops the chain.
+
+## Connectors
+
+| Connector | Type | Description |
+|-----------|------|-------------|
+| `Connector\BasicConnector` | `basic` | A single identifier/password pair; a plain password is hashed on construction |
+| `Connector\ArrayConnector` | `array` | An in-memory user list (`addUser($identifier, $password, $id, $data)`), hashed through a `Contract\PasswordHasherInterface` (`hash` / `verify` / `needsRehash`) you supply, or compared in plain text |
+| `Connector\DatabaseConnector` | `database` | Looks the user up with [jdz/database](https://jdz.joffreydemetz.com/database) and verifies with `password_verify()` |
+| `Connector\AbstractConnector` | — | Base class for your own connectors (`supports()`, `verifyPassword()`, result factories) |
+
+`DatabaseConnector` reads the `#__user` table by default (`email` / `password`
+columns). Settings are passed in the constructor's `$options` array (keyed by
+property name: `table`, `identifierColumn`, `passwordColumn`, `bannedColumn`,
+`confirmedColumn`, `extraColumns`, `checkBanned`, `checkConfirmed`) or, for
+most, set fluently:
+
+```php
+use JDZ\Authentication\Connector\DatabaseConnector;
+
+$connector = (new DatabaseConnector($database))   // JDZ\Database\Contract\DatabaseInterface
+    ->setTable('user')
+    ->setIdentifierColumn('email')
+    ->setPasswordColumn('password')
+    ->setExtraColumns(['username', 'firstname', 'lastname'])
+    ->setCheckBanned(true)       // `banned` column set   -> USER_BANNED
+    ->setCheckConfirmed(true);   // `confirmed` column empty -> USER_NOT_CONFIRMED
+
+$auth->addConnector($connector, 10);
+```
+
 ## Examples
 
 All examples can be run directly from the command line:
@@ -58,7 +94,7 @@ See the [examples](examples/) directory for detailed examples:
 
 - `01-basic-authentication.php` - Basic authentication
 - `02-multiple-connectors.php` - Multiple authentication connectors
-- `03-database-authentication.php` - Database authentication with PDO (requires PDO SQLite)
+- `03-database-authentication.php` - A custom PDO connector extending `AbstractConnector` (requires PDO SQLite)
 - `04-error-handling.php` - Error handling with exceptions
 - `05-advanced-mysql.php` - Advanced MySQL authentication (requires PDO SQLite or MySQL)
 
@@ -96,6 +132,9 @@ Demonstrates:
 
 ### 03-database-authentication.php
 **Database Authentication with PDO**
+
+This example hand-rolls its own PDO connector to show how a custom connector is
+written; it does not use the built-in `DatabaseConnector` (see Connectors above).
 
 Demonstrates:
 - Creating a custom connector by extending AbstractConnector
@@ -168,13 +207,14 @@ composer test
 vendor/bin/phpunit
 ```
 
-The test suite includes **59 tests** with **143 assertions**:
+The test suite covers:
 
-- **AuthStatusEnumTest** (9 tests): Tests for the authentication status enum values and methods
-- **AuthenticationResultTest** (12 tests): Tests for the authentication result object, factory methods, and toArray() conversion
-- **AuthenticationTest** (13 tests): Tests for the main authentication class including credentials normalization, priority, and connector flow
-- **BasicConnectorTest** (11 tests): Tests for the basic authentication connector including constructor validation and authentication scenarios
-- **DatabaseConnectorTest** (14 tests): Tests for the database authentication connector using mocked DatabaseInterface
+- **AuthStatusEnumTest**: the authentication status enum values and methods
+- **AuthenticationResultTest**: the authentication result object, factory methods, and toArray() conversion
+- **AuthenticationTest**: the main authentication class including credentials normalization, priority, and connector flow
+- **Connector/BasicConnectorTest**: the basic connector, including constructor validation and authentication scenarios
+- **Connector/ArrayConnectorTest**: the array connector with hashed and plain passwords
+- **Connector/DatabaseConnectorTest**: the database connector against a mocked `DatabaseInterface`, including banned / unconfirmed checks
 
 ## Authentication Status
 
@@ -231,6 +271,16 @@ $result->getType();         // string - Get connector type (e.g., "basic", "data
 $result->get($key);         // mixed - Get custom data
 $result->toArray();         // array - Convert to array
 ```
+
+## Changelog
+
+- **3.6.6** — `DatabaseConnector`: configurable extra display columns (`extraColumns` / `setExtraColumns()`).
+- **3.6.5** — Development dependency `jdz/database` ^2.1.
+- **3.6.4** — PHPUnit 11.
+- **3.6.3** — `DatabaseConnector` uses `JDZ\Database\Contract\DatabaseInterface`.
+- **3.6.1 / 3.6.2** — Test tooling only.
+- **3.6.0** — Banned / unconfirmed handling in `DatabaseConnector`; `ArrayConnector`; `Contract\AuthenticationInterface` and `Contract\PasswordHasherInterface`; `ConnectorInterface` moved to `JDZ\Authentication\Contract\`.
+- **3.5.0** — `AuthenticationResult` replaces `AuthenticationResponse`; `AbstractConnector`.
 
 ## License
 
