@@ -274,13 +274,14 @@ $result->toArray();         // array - Convert to array
 
 ## Changelog
 
+- **3.6.7** — `JDZ\Authentication\Connector\ConnectorInterface` is back as a deprecated alias of `Contract\ConnectorInterface` (3.6.0 had removed the old name).
 - **3.6.6** — `DatabaseConnector`: configurable extra display columns (`extraColumns` / `setExtraColumns()`).
 - **3.6.5** — Development dependency `jdz/database` ^2.1.
 - **3.6.4** — PHPUnit 11.
 - **3.6.3** — `DatabaseConnector` uses `JDZ\Database\Contract\DatabaseInterface`.
 - **3.6.1 / 3.6.2** — Test tooling only.
-- **3.6.0** — Banned / unconfirmed handling in `DatabaseConnector`; `ArrayConnector`; `Contract\AuthenticationInterface` and `Contract\PasswordHasherInterface`; `ConnectorInterface` moved to `JDZ\Authentication\Contract\`.
-- **3.5.0** — `AuthenticationResult` replaces `AuthenticationResponse`; `AbstractConnector`.
+- **3.6.0** — Banned / unconfirmed handling in `DatabaseConnector`; `ArrayConnector`; `Contract\AuthenticationInterface` and `Contract\PasswordHasherInterface`; `ConnectorInterface` moved to `JDZ\Authentication\Contract\` — **breaking** for code naming the old `Connector\ConnectorInterface` (aliased again since 3.6.7).
+- **3.5.0** — **Breaking:** `AuthenticationResult` replaces `AuthenticationResponse`; `AbstractConnector`.
 
 ## License
 
