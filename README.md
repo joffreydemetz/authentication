@@ -274,6 +274,8 @@ $result->toArray();         // array - Convert to array
 
 ## Changelog
 
+- **3.6.8** — An unknown user and a wrong password get the same message ("Invalid credentials") and the same hashing time (the not-found path verifies against a dummy hash): neither tells whether the account exists. `"0"` is a valid identifier or password; a numeric identifier or password is read as text, any other non-string as missing (it was a TypeError). `supports()` normalises the credentials like `authenticate()`. Plain-password mode compares with `hash_equals()`. `DatabaseConnector` reads only its documented options (`name` and `database` were overwritable; `checkBanned => 1` was a TypeError).
+
 - **3.6.7** — `JDZ\Authentication\Connector\ConnectorInterface` is back as a deprecated alias of `Contract\ConnectorInterface` (3.6.0 had removed the old name).
 - **3.6.6** — `DatabaseConnector`: configurable extra display columns (`extraColumns` / `setExtraColumns()`).
 - **3.6.5** — Development dependency `jdz/database` ^2.1.
