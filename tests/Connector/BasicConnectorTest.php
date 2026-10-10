@@ -22,6 +22,29 @@ class BasicConnectorTest extends TestCase
         return password_hash($password, PASSWORD_BCRYPT, ['cost' => 4]);
     }
 
+    /**
+     * A BasicConnector whose verifyPassword() records its (password, hash) calls in
+     * `$verified` and answers $verifies to every one of them.
+     */
+    private static function recordingConnector(string $hash, bool $verifies): BasicConnector
+    {
+        return new class ('testuser', $hash, $verifies) extends BasicConnector {
+            /** @var list<array{string, string}> */
+            public array $verified = [];
+
+            public function __construct(string $identifier, string $password, private bool $verifies)
+            {
+                parent::__construct($identifier, $password);
+            }
+
+            protected function verifyPassword(string $password, string $hashedPassword): bool
+            {
+                $this->verified[] = [$password, $hashedPassword];
+                return $this->verifies;
+            }
+        };
+    }
+
     #[DataProvider('missingConstructorArguments')]
     public function testConstructorRefusesAnEmptyIdentifierOrPassword(string $identifier, string $password): void
     {
@@ -58,6 +81,38 @@ class BasicConnectorTest extends TestCase
             'another case' => [['identifier' => 'TestUser', 'password' => 'testpass']],
             'surrounding spaces (trimming is Authentication\'s job)' => [['identifier' => ' testuser ', 'password' => 'testpass']],
             'no identifier key' => [['password' => 'testpass']],
+        ];
+    }
+
+    /**
+     * An unknown identifier costs the same password verification as a known one (against
+     * one fixed bcrypt hash, never the stored one), so the response time does not tell
+     * whether the account exists; the outcome of that check is thrown away.
+     */
+    #[DataProvider('dummyVerifications')]
+    public function testAnUnknownUserStillCostsAPasswordVerification(bool $verifies): void
+    {
+        $stored = self::hash('testpass');
+        $connector = self::recordingConnector($stored, $verifies);
+
+        $result = $connector->authenticate(['identifier' => 'wronguser', 'password' => 'testpass']);
+
+        $this->assertSame(AuthStatusEnum::USER_NOT_FOUND, $result->getStatus());
+        $this->assertSame('basic', $result->getType());
+        $this->assertCount(1, $connector->verified);
+        $this->assertSame('testpass', $connector->verified[0][0]);
+        $this->assertNotSame($stored, $connector->verified[0][1]);
+        $this->assertSame(
+            ['algo' => '2y', 'algoName' => 'bcrypt', 'options' => ['cost' => 12]],
+            password_get_info($connector->verified[0][1])
+        );
+    }
+
+    public static function dummyVerifications(): array
+    {
+        return [
+            'the dummy check fails' => [false],
+            'even a dummy check that passes' => [true],
         ];
     }
 

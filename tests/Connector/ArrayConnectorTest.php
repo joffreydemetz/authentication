@@ -15,6 +15,9 @@ use PHPUnit\Framework\TestCase;
 
 class ArrayConnectorTest extends TestCase
 {
+    /** @var list<array{string, string}> the recording hasher's verify() calls: (plain, hashed) */
+    private array $verified = [];
+
     /**
      * A fake hasher: hash(p) is "hashed:p", and verify() only accepts the (plain, hashed) argument order.
      */
@@ -24,6 +27,22 @@ class ArrayConnectorTest extends TestCase
         $hasher->method('hash')->willReturnCallback(static fn(string $plain): string => 'hashed:' . $plain);
         $hasher->method('verify')->willReturnCallback(
             static fn(string $plain, string $hashed): bool => $hashed === 'hashed:' . $plain
+        );
+
+        return $hasher;
+    }
+
+    /**
+     * A hasher that records its verify() calls and answers $verifies to every one of them.
+     */
+    private function createRecordingHasher(bool $verifies): PasswordHasherInterface
+    {
+        $hasher = $this->createStub(PasswordHasherInterface::class);
+        $hasher->method('verify')->willReturnCallback(
+            function (string $plain, string $hashed) use ($verifies): bool {
+                $this->verified[] = [$plain, $hashed];
+                return $verifies;
+            }
         );
 
         return $hasher;
@@ -93,6 +112,38 @@ class ArrayConnectorTest extends TestCase
         $this->assertSame('array', $result->getType());
     }
 
+    /**
+     * An unknown user goes through the same hasher verification as a known one (against
+     * one fixed bcrypt hash), so the response time does not tell whether the account exists;
+     * the outcome of that check is thrown away.
+     */
+    #[DataProvider('dummyVerifications')]
+    public function testAnUnknownUserStillCostsAPasswordVerification(bool $verifies): void
+    {
+        $connector = new ArrayConnector($this->createRecordingHasher($verifies));
+        $connector->addUser('admin', 'secret', 1);
+
+        $first = $connector->authenticate(['identifier' => 'nobody', 'password' => 'secret']);
+        $second = $connector->authenticate(['identifier' => 'somebody-else', 'password' => 'other']);
+
+        $this->assertSame(AuthStatusEnum::USER_NOT_FOUND, $first->getStatus());
+        $this->assertSame(AuthStatusEnum::USER_NOT_FOUND, $second->getStatus());
+        $this->assertSame(['secret', 'other'], array_column($this->verified, 0));
+        $this->assertSame(
+            ['algo' => '2y', 'algoName' => 'bcrypt', 'options' => ['cost' => 12]],
+            password_get_info($this->verified[0][1] ?? '')
+        );
+        $this->assertSame($this->verified[0][1], $this->verified[1][1]);
+    }
+
+    public static function dummyVerifications(): array
+    {
+        return [
+            'the dummy check fails' => [false],
+            'even a dummy check that passes' => [true],
+        ];
+    }
+
     public function testAuthenticateReturnsInvalidPassword(): void
     {
         $connector = new ArrayConnector($this->createPasswordHasher());
@@ -145,6 +196,10 @@ class ArrayConnectorTest extends TestCase
         $connector->addUser('admin', 'plain123', 1);
 
         $this->assertTrue($connector->authenticate(['identifier' => 'admin', 'password' => 'plain123'])->isSuccess());
+        $this->assertSame(
+            AuthStatusEnum::USER_NOT_FOUND,
+            $connector->authenticate(['identifier' => 'nobody', 'password' => 'plain123'])->getStatus()
+        );
     }
 
     public function testPlainPasswordsMode(): void

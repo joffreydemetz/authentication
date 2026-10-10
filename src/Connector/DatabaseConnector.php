@@ -36,9 +36,15 @@ class DatabaseConnector extends AbstractConnector
     {
         $this->database = $database;
 
+        // the documented options only (`name` and `database` used to be overwritable),
+        // the two checks cast to bool (1 was a TypeError); unknown keys are ignored
         foreach ($options as $key => $value) {
-            if (property_exists($this, $key)) {
-                $this->$key = $value;
+            if (in_array($key, ['table', 'identifierColumn', 'passwordColumn', 'bannedColumn', 'confirmedColumn'], true)) {
+                $this->$key = (string) $value;
+            } elseif ('extraColumns' === $key) {
+                $this->extraColumns = (array) $value;
+            } elseif ('checkBanned' === $key || 'checkConfirmed' === $key) {
+                $this->$key = (bool) $value;
             }
         }
     }
@@ -51,7 +57,7 @@ class DatabaseConnector extends AbstractConnector
         $user = $this->findUser($identifier);
 
         if ($user === null) {
-            return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
+            return $this->createUserNotFoundResult($password);
         }
 
         $hashedPassword = $user[$this->passwordColumn] ?? '';

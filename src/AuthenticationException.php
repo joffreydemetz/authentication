@@ -19,7 +19,8 @@ class AuthenticationException extends \Exception
         ?\Throwable $previous = null
     ) {
         $this->status = $status;
-        parent::__construct($message ?: $status->message(), $code ?: $status->value, $previous);
+        // an empty message falls back to the status one ("0" is a message)
+        parent::__construct('' !== $message ? $message : $status->message(), $code ?: $status->value, $previous);
     }
 
     public function getStatus(): AuthStatusEnum

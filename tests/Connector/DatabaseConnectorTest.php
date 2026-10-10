@@ -70,6 +70,29 @@ class DatabaseConnectorTest extends TestCase
         return $database;
     }
 
+    /**
+     * A DatabaseConnector whose verifyPassword() records its (password, hash) calls in
+     * `$verified` and answers $verifies to every one of them.
+     */
+    private function recordingConnector(?array $row, bool $verifies): DatabaseConnector
+    {
+        return new class ($this->database($row), $verifies) extends DatabaseConnector {
+            /** @var list<array{string, string}> */
+            public array $verified = [];
+
+            public function __construct(DatabaseInterface $database, private bool $verifies)
+            {
+                parent::__construct($database);
+            }
+
+            protected function verifyPassword(string $password, string $hashedPassword): bool
+            {
+                $this->verified[] = [$password, $hashedPassword];
+                return $this->verifies;
+            }
+        };
+    }
+
     private function assertSingleQuery(string $sql, string $identifier): void
     {
         $this->assertCount(1, $this->queries);
@@ -273,6 +296,37 @@ class DatabaseConnectorTest extends TestCase
         ];
     }
 
+    /**
+     * An unknown user costs the same password verification as a known one (against one
+     * fixed bcrypt hash), so the response time does not tell whether the account exists;
+     * the outcome of that check is thrown away.
+     */
+    #[DataProvider('dummyVerifications')]
+    public function testAnUnknownUserStillCostsAPasswordVerification(?array $row, bool $verifies): void
+    {
+        $connector = $this->recordingConnector($row, $verifies);
+
+        $result = $connector->authenticate(['identifier' => 'test@example.com', 'password' => 'correctpass']);
+
+        $this->assertSame(AuthStatusEnum::USER_NOT_FOUND, $result->getStatus());
+        $this->assertSame('database', $result->getType());
+        $this->assertCount(1, $connector->verified);
+        $this->assertSame('correctpass', $connector->verified[0][0]);
+        $this->assertSame(
+            ['algo' => '2y', 'algoName' => 'bcrypt', 'options' => ['cost' => 12]],
+            password_get_info($connector->verified[0][1])
+        );
+    }
+
+    public static function dummyVerifications(): array
+    {
+        return [
+            'no row, the dummy check fails' => [null, false],
+            'no row, even a dummy check that passes' => [null, true],
+            'empty row' => [[], true],
+        ];
+    }
+
     public function testSuccessResult(): void
     {
         $row = self::row([
@@ -316,5 +370,22 @@ class DatabaseConnectorTest extends TestCase
 
         $this->assertTrue($result->isSuccess());
         $this->assertNull($result->getUserId());
+    }
+
+    /**
+     * Only the documented options are read: `name` (the result type) and `database`
+     * used to be overwritable, and a boolean given as 1 was a TypeError.
+     */
+    public function testOnlyTheDocumentedOptionsAreRead(): void
+    {
+        $connector = new DatabaseConnector($this->database(['id' => '42', 'email' => 'test@example.com', 'password' => password_hash('correctpass', PASSWORD_BCRYPT, ['cost' => 4]), 'banned' => 1]), [
+            'name' => 'LOCAL',
+            'checkBanned' => 1,
+            'unknown' => 'ignored',
+        ]);
+
+        $result = $connector->authenticate(['identifier' => 'test@example.com', 'password' => 'correctpass']);
+
+        $this->assertSame([AuthStatusEnum::USER_BANNED, 'database'], [$result->getStatus(), $result->getType()]);
     }
 }

@@ -31,21 +31,17 @@ class Authentication implements AuthenticationInterface
 
     public function authenticate(array $credentials): AuthenticationResult
     {
-        $identifier = trim($credentials['identifier'] ?? $credentials['email'] ?? $credentials['username'] ?? '');
-        $password = $credentials['password'] ?? '';
+        $normalizedCredentials = $this->normalize($credentials);
+        $identifier = $normalizedCredentials['identifier'];
 
-        if (empty($identifier)) {
+        // '' only: "0" is a valid identifier or password (empty() refused it)
+        if ('' === $identifier) {
             return AuthenticationResult::failure(AuthStatusEnum::EMPTY_IDENTIFIER);
         }
 
-        if (empty($password)) {
+        if ('' === $normalizedCredentials['password']) {
             return AuthenticationResult::failure(AuthStatusEnum::EMPTY_PASSWORD);
         }
-
-        $normalizedCredentials = [
-            'identifier' => $identifier,
-            'password' => $password,
-        ];
 
         foreach ($this->connectors as $entry) {
             $connector = $entry['connector'];
@@ -75,13 +71,36 @@ class Authentication implements AuthenticationInterface
 
     public function supports(array $credentials): bool
     {
+        // the credentials the connectors would get from authenticate()
+        $normalizedCredentials = $this->normalize($credentials);
+
         foreach ($this->connectors as $entry) {
-            if ($entry['connector']->supports($credentials)) {
+            if ($entry['connector']->supports($normalizedCredentials)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * The identifier (identifier > email > username, trimmed) and the password as
+     * strings. Visitors control these values: a number is read as text, anything
+     * else (an array, a boolean) as missing — never a TypeError.
+     *
+     * @return array{identifier: string, password: string}
+     */
+    private function normalize(array $credentials): array
+    {
+        return [
+            'identifier' => trim(self::credential($credentials['identifier'] ?? $credentials['email'] ?? $credentials['username'] ?? '')),
+            'password' => self::credential($credentials['password'] ?? ''),
+        ];
+    }
+
+    private static function credential(mixed $value): string
+    {
+        return is_string($value) || is_int($value) || is_float($value) ? (string) $value : '';
     }
 
     /**

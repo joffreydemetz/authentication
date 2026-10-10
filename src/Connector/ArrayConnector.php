@@ -40,17 +40,12 @@ class ArrayConnector extends AbstractConnector
         $password = $credentials['password'];
 
         if (!isset($this->users[$identifier])) {
-            return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
+            return $this->createUserNotFoundResult($password);
         }
 
         $user = $this->users[$identifier];
-        $storedPassword = $user['password'];
 
-        $valid = $this->plainPasswords
-            ? $password === $storedPassword
-            : $this->passwordHasher->verify($password, $storedPassword);
-
-        if (!$valid) {
+        if (!$this->verifyPassword($password, $user['password'])) {
             return $this->createFailureResult(AuthStatusEnum::INVALID_PASSWORD);
         }
 
@@ -59,5 +54,16 @@ class ArrayConnector extends AbstractConnector
             'firstname' => $user['firstname'] ?? '',
             'lastname' => $user['lastname'] ?? '',
         ]);
+    }
+
+    /**
+     * Through the password hasher; in plain-password mode, $hashedPassword is the stored
+     * plain password and the two are compared.
+     */
+    protected function verifyPassword(string $password, string $hashedPassword): bool
+    {
+        return $this->plainPasswords
+            ? \hash_equals($hashedPassword, $password)
+            : $this->passwordHasher->verify($password, $hashedPassword);
     }
 }

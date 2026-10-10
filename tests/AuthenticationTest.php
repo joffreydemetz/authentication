@@ -8,6 +8,7 @@
 namespace JDZ\Authentication\Tests;
 
 use JDZ\Authentication\Authentication;
+use JDZ\Authentication\AuthenticationException;
 use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
 use JDZ\Authentication\Connector\BasicConnector;
@@ -342,5 +343,67 @@ class AuthenticationTest extends TestCase
             ->addConnector($this->connector('b', AuthenticationResult::success(), false));
 
         $this->assertFalse($auth->supports(['identifier' => 'test', 'password' => 'test']));
+    }
+
+    // --- "0", numbers and unusable values ---
+
+    public static function zeroAndNumericCredentials(): array
+    {
+        return [
+            // empty() refused "0": a valid identifier or password
+            'the identifier "0"' => ['0', 'secret', ['identifier' => '0', 'password' => 'secret']],
+            'the identifier " 0 ", trimmed' => ['0', 'secret', ['identifier' => ' 0 ', 'password' => 'secret']],
+            'the password "0"' => ['bob', '0', ['identifier' => 'bob', 'password' => '0']],
+            // a number from a JSON body used to be a TypeError (a 500)
+            'a numeric identifier' => ['42', 'secret', ['identifier' => 42, 'password' => 'secret']],
+            'a numeric password' => ['bob', '1234', ['identifier' => 'bob', 'password' => 1234]],
+        ];
+    }
+
+    #[DataProvider('zeroAndNumericCredentials')]
+    public function testZeroAndNumericCredentialsAuthenticate(string $identifier, string $password, array $credentials): void
+    {
+        $auth = (new Authentication())->addConnector(new BasicConnector($identifier, $password));
+
+        $this->assertSame(AuthStatusEnum::SUCCESS, $auth->authenticate($credentials)->getStatus());
+    }
+
+    public static function unusableCredentials(): array
+    {
+        return [
+            'an array identifier' => [['identifier' => ['bob'], 'password' => 'x'], AuthStatusEnum::EMPTY_IDENTIFIER],
+            'a boolean identifier' => [['identifier' => true, 'password' => 'x'], AuthStatusEnum::EMPTY_IDENTIFIER],
+            'an array password' => [['identifier' => 'bob', 'password' => ['x']], AuthStatusEnum::EMPTY_PASSWORD],
+            'a boolean password' => [['identifier' => 'bob', 'password' => true], AuthStatusEnum::EMPTY_PASSWORD],
+        ];
+    }
+
+    /**
+     * Visitors control these values: they are refused as missing, never a TypeError.
+     */
+    #[DataProvider('unusableCredentials')]
+    public function testUnusableCredentialsAreAFailureNotAnError(array $credentials, AuthStatusEnum $status): void
+    {
+        $auth = (new Authentication())->addConnector(new BasicConnector('bob', 'x'));
+
+        $this->assertSame($status, $auth->authenticate($credentials)->getStatus());
+    }
+
+    /**
+     * supports() passed the raw credentials: an email-only set was "not supported"
+     * while authenticate() accepted it.
+     */
+    public function testSupportsNormalisesTheCredentialsLikeAuthenticate(): void
+    {
+        $auth = (new Authentication())->addConnector(new BasicConnector('bob', 'x'));
+
+        $this->assertTrue($auth->supports(['email' => ' bob ', 'password' => 'x']));
+        $this->assertTrue($auth->supports(['username' => 'bob', 'password' => 'x']));
+    }
+
+    public function testAZeroMessageOrNameIsKept(): void
+    {
+        $this->assertSame('0', (new AuthenticationException(AuthStatusEnum::FAILURE, '0'))->getMessage());
+        $this->assertSame('0', AuthenticationResult::failure(AuthStatusEnum::FAILURE, '0')->getMessage());
     }
 }

@@ -124,8 +124,9 @@ class AuthenticationResult
 
     public function getFullname(): string
     {
-        $parts = array_filter([$this->firstname, $this->lastname]);
-        return implode(' ', $parts) ?: $this->email ?: $this->identifier;
+        // a name "0" is a name: only empty parts are left out
+        $fullname = implode(' ', array_filter([$this->firstname, $this->lastname], fn($part) => '' !== (string) $part));
+        return '' !== $fullname ? $fullname : ($this->email ?: $this->identifier);
     }
 
     public function getType(): string
@@ -141,7 +142,7 @@ class AuthenticationResult
 
     public function getMessage(): string
     {
-        return $this->message ?: $this->status->message();
+        return '' !== $this->message ? $this->message : $this->status->message();
     }
 
     public function setMessage(string $message): static

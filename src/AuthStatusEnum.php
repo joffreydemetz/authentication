@@ -27,8 +27,8 @@ enum AuthStatusEnum: int
             self::SUCCESS => 'Authentication successful',
             self::EMPTY_IDENTIFIER => 'Please enter your email or username',
             self::EMPTY_PASSWORD => 'Please enter your password',
-            self::USER_NOT_FOUND => 'Invalid credentials',
-            self::INVALID_PASSWORD => 'Invalid password',
+            // the same words: a visitor must not learn whether the account exists
+            self::USER_NOT_FOUND, self::INVALID_PASSWORD => 'Invalid credentials',
             self::USER_BANNED => 'Your account has been suspended',
             self::USER_NOT_CONFIRMED => 'Please confirm your email address',
             self::ACCOUNT_LOCKED => 'Account temporarily locked due to too many failed attempts',

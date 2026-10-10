@@ -39,7 +39,7 @@ class BasicConnector extends AbstractConnector
         $password = $credentials['password'] ?? '';
 
         if ($identifier !== $this->identifier) {
-            return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
+            return $this->createUserNotFoundResult($password);
         }
 
         if (!$this->verifyPassword($password, $this->password)) {

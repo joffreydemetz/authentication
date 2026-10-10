@@ -15,6 +15,14 @@ use JDZ\Authentication\Contract\ConnectorInterface;
 
 abstract class AbstractConnector implements ConnectorInterface
 {
+    /**
+     * A bcrypt hash (cost 12, PHP 8.4's PASSWORD_DEFAULT cost) of a random string nobody
+     * knows. An unknown user's password is still verified against it, so looking up a
+     * missing account costs the same hashing time as a wrong password.
+     * A connector whose stored hashes use another algorithm or cost may override it.
+     */
+    protected const DUMMY_HASH = '$2y$12$S2sSWdKEG8AhsSokh1lkNOQ7G6ORDGR6ExqbokzUIyOHbTg3gOJUa';
+
     protected string $name = '';
 
     public function getName(): string
@@ -30,6 +38,18 @@ abstract class AbstractConnector implements ConnectorInterface
     protected function verifyPassword(string $password, string $hashedPassword): bool
     {
         return password_verify($password, $hashedPassword);
+    }
+
+    /**
+     * The USER_NOT_FOUND result, after the same verifyPassword() a known user goes through
+     * (against DUMMY_HASH, its outcome ignored): the response time does not tell whether
+     * the account exists.
+     */
+    protected function createUserNotFoundResult(string $password): AuthenticationResult
+    {
+        $this->verifyPassword($password, static::DUMMY_HASH);
+
+        return $this->createFailureResult(AuthStatusEnum::USER_NOT_FOUND);
     }
 
     protected function createSuccessResult(?int $userId = null, array $userData = []): AuthenticationResult

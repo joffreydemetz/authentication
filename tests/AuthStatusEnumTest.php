@@ -54,9 +54,15 @@ class AuthStatusEnumTest extends TestCase
     }
 
     /**
-     * INVALID_PASSWORD is left out on purpose: its "Invalid password" tells a wrong
-     * password apart from an unknown user ("Invalid credentials"): reported, not pinned.
+     * The message a visitor reads must not tell whether the account exists; the two
+     * statuses stay apart (the connector chain falls through on USER_NOT_FOUND only).
      */
+    public function testAWrongPasswordReadsLikeAnUnknownUser(): void
+    {
+        $this->assertSame(AuthStatusEnum::USER_NOT_FOUND->message(), AuthStatusEnum::INVALID_PASSWORD->message());
+        $this->assertNotSame(AuthStatusEnum::USER_NOT_FOUND, AuthStatusEnum::INVALID_PASSWORD);
+    }
+
     public static function messages(): array
     {
         return [
@@ -65,6 +71,7 @@ class AuthStatusEnumTest extends TestCase
             'empty identifier' => [AuthStatusEnum::EMPTY_IDENTIFIER, 'Please enter your email or username'],
             'empty password' => [AuthStatusEnum::EMPTY_PASSWORD, 'Please enter your password'],
             'user not found' => [AuthStatusEnum::USER_NOT_FOUND, 'Invalid credentials'],
+            'invalid password: the same words as an unknown user' => [AuthStatusEnum::INVALID_PASSWORD, 'Invalid credentials'],
             'user banned' => [AuthStatusEnum::USER_BANNED, 'Your account has been suspended'],
             'user not confirmed' => [AuthStatusEnum::USER_NOT_CONFIRMED, 'Please confirm your email address'],
             'account locked' => [AuthStatusEnum::ACCOUNT_LOCKED, 'Account temporarily locked due to too many failed attempts'],
