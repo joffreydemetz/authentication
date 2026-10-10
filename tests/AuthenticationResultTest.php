@@ -9,6 +9,7 @@ namespace JDZ\Authentication\Tests;
 
 use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class AuthenticationResultTest extends TestCase
@@ -39,108 +40,91 @@ class AuthenticationResultTest extends TestCase
         $this->assertSame('Custom message', $result->getMessage());
     }
 
-    public function testSettersAndGetters(): void
+    #[DataProvider('fullnames')]
+    public function testFullname(string $firstname, string $lastname, string $email, string $identifier, string $expected): void
     {
-        $result = new AuthenticationResult();
+        $result = (new AuthenticationResult())
+            ->setFirstname($firstname)
+            ->setLastname($lastname)
+            ->setEmail($email)
+            ->setIdentifier($identifier);
 
-        $result->setUserId(42);
-        $result->setIdentifier('test@example.com');
-        $result->setEmail('test@example.com');
-        $result->setUsername('testuser');
-        $result->setFirstname('John');
-        $result->setLastname('Doe');
-        $result->setType('basic');
-
-        $this->assertSame(42, $result->getUserId());
-        $this->assertSame('test@example.com', $result->getIdentifier());
-        $this->assertSame('test@example.com', $result->getEmail());
-        $this->assertSame('testuser', $result->getUsername());
-        $this->assertSame('John', $result->getFirstname());
-        $this->assertSame('Doe', $result->getLastname());
-        $this->assertSame('basic', $result->getType());
+        $this->assertSame($expected, $result->getFullname());
     }
 
-    public function testGetFullname(): void
+    public static function fullnames(): array
     {
-        $result = new AuthenticationResult();
-        $result->setFirstname('John');
-        $result->setLastname('Doe');
-
-        $this->assertSame('John Doe', $result->getFullname());
-    }
-
-    public function testGetFullnameFallsBackToEmail(): void
-    {
-        $result = new AuthenticationResult();
-        $result->setEmail('test@example.com');
-
-        $this->assertSame('test@example.com', $result->getFullname());
-    }
-
-    public function testGetFullnameFallsBackToIdentifier(): void
-    {
-        $result = new AuthenticationResult();
-        $result->setIdentifier('user123');
-
-        $this->assertSame('user123', $result->getFullname());
+        return [
+            'first and last name' => ['John', 'Doe', 'john@example.com', 'jdoe', 'John Doe'],
+            'first name only' => ['John', '', 'john@example.com', 'jdoe', 'John'],
+            'last name only' => ['', 'Doe', 'john@example.com', 'jdoe', 'Doe'],
+            'no name: the email' => ['', '', 'john@example.com', 'jdoe', 'john@example.com'],
+            'no name nor email: the identifier' => ['', '', '', 'jdoe', 'jdoe'],
+            'nothing at all' => ['', '', '', '', ''],
+        ];
     }
 
     public function testCustomData(): void
     {
         $result = new AuthenticationResult();
 
-        // Test set() adds individual values
         $result->set('language', 'fr-FR');
         $result->set('role', 'admin');
 
+        $this->assertSame(['language' => 'fr-FR', 'role' => 'admin'], $result->getData());
         $this->assertSame('fr-FR', $result->get('language'));
-        $this->assertSame('admin', $result->get('role'));
 
-        // Test setData() replaces all data
+        // setData() replaces everything set before
         $result->setData(['extra' => 'value']);
 
-        $this->assertSame('value', $result->get('extra'));
-        $this->assertNull($result->get('language')); // was replaced
-        $this->assertNull($result->get('role'));     // was replaced
-
-        // Test default value
-        $this->assertNull($result->get('nonexistent'));
+        $this->assertSame(['extra' => 'value'], $result->getData());
+        $this->assertNull($result->get('language'));
         $this->assertSame('default', $result->get('nonexistent', 'default'));
     }
 
     public function testToArrayWithSuccess(): void
     {
-        $result = AuthenticationResult::success(1);
-        $result->setIdentifier('test@example.com');
-        $result->setEmail('test@example.com');
-        $result->setUsername('testuser');
-        $result->setFirstname('John');
-        $result->setLastname('Doe');
-        $result->setType('basic');
+        $result = AuthenticationResult::success(1)
+            ->setIdentifier('test@example.com')
+            ->setEmail('test@example.com')
+            ->setUsername('testuser')
+            ->setFirstname('John')
+            ->setLastname('Doe')
+            ->setType('basic')
+            ->set('role', 'admin');
 
-        $array = $result->toArray();
-
-        $this->assertIsArray($array);
-        $this->assertEquals(1, $array['status']);
-        $this->assertEquals('Authentication successful', $array['message']);
-        $this->assertEquals(1, $array['user_id']);
-        $this->assertEquals('test@example.com', $array['identifier']);
-        $this->assertEquals('test@example.com', $array['email']);
-        $this->assertEquals('testuser', $array['username']);
-        $this->assertEquals('John', $array['firstname']);
-        $this->assertEquals('Doe', $array['lastname']);
-        $this->assertEquals('John Doe', $array['fullname']);
-        $this->assertEquals('basic', $array['type']);
+        $this->assertSame([
+            'status' => 1,
+            'message' => 'Authentication successful',
+            'user_id' => 1,
+            'identifier' => 'test@example.com',
+            'email' => 'test@example.com',
+            'username' => 'testuser',
+            'firstname' => 'John',
+            'lastname' => 'Doe',
+            'fullname' => 'John Doe',
+            'type' => 'basic',
+            'data' => ['role' => 'admin'],
+        ], $result->toArray());
     }
 
     public function testToArrayWithFailure(): void
     {
-        $result = AuthenticationResult::failure(AuthStatusEnum::INVALID_PASSWORD);
+        $result = AuthenticationResult::failure(AuthStatusEnum::USER_BANNED);
 
-        $array = $result->toArray();
-
-        $this->assertEquals(5, $array['status']);
-        $this->assertEquals('Invalid password', $array['message']);
+        $this->assertSame([
+            'status' => 6,
+            'message' => 'Your account has been suspended',
+            'user_id' => null,
+            'identifier' => '',
+            'email' => '',
+            'username' => '',
+            'firstname' => '',
+            'lastname' => '',
+            'fullname' => '',
+            'type' => '',
+            'data' => [],
+        ], $result->toArray());
     }
 
     public function testMessageFallsBackToStatusMessage(): void
@@ -150,20 +134,13 @@ class AuthenticationResultTest extends TestCase
         $this->assertSame('Invalid credentials', $result->getMessage());
     }
 
-    public function testFluentInterface(): void
+    public function testAnEmptyMessageFallsBackToTheCurrentStatus(): void
     {
-        $result = new AuthenticationResult();
+        $result = AuthenticationResult::failure(AuthStatusEnum::USER_BANNED, 'Banned until Monday');
 
-        $this->assertSame($result, $result->setStatus(AuthStatusEnum::SUCCESS));
-        $this->assertSame($result, $result->setUserId(1));
-        $this->assertSame($result, $result->setIdentifier('test'));
-        $this->assertSame($result, $result->setEmail('test@example.com'));
-        $this->assertSame($result, $result->setUsername('testuser'));
-        $this->assertSame($result, $result->setFirstname('John'));
-        $this->assertSame($result, $result->setLastname('Doe'));
-        $this->assertSame($result, $result->setType('basic'));
-        $this->assertSame($result, $result->setMessage('Custom'));
-        $this->assertSame($result, $result->setData([]));
-        $this->assertSame($result, $result->set('key', 'value'));
+        $result->setMessage('')->setStatus(AuthStatusEnum::SUCCESS);
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('Authentication successful', $result->getMessage());
     }
 }

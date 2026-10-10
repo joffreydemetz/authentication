@@ -7,55 +7,47 @@
 
 namespace JDZ\Authentication\Tests\Connector;
 
-use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
 use JDZ\Authentication\Connector\ArrayConnector;
 use JDZ\Authentication\Contract\PasswordHasherInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ArrayConnectorTest extends TestCase
 {
+    /**
+     * A fake hasher: hash(p) is "hashed:p", and verify() only accepts the (plain, hashed) argument order.
+     */
     private function createPasswordHasher(): PasswordHasherInterface
     {
-        $hasher = $this->createMock(PasswordHasherInterface::class);
-
-        $hasher->method('hash')->willReturnCallback(function (string $password) {
-            return password_hash($password, PASSWORD_DEFAULT);
-        });
-
-        $hasher->method('verify')->willReturnCallback(function (string $plain, string $hashed) {
-            return password_verify($plain, $hashed);
-        });
+        $hasher = $this->createStub(PasswordHasherInterface::class);
+        $hasher->method('hash')->willReturnCallback(static fn(string $plain): string => 'hashed:' . $plain);
+        $hasher->method('verify')->willReturnCallback(
+            static fn(string $plain, string $hashed): bool => $hashed === 'hashed:' . $plain
+        );
 
         return $hasher;
     }
 
-    public function testGetName(): void
+    #[DataProvider('supportedCredentials')]
+    public function testSupports(array $credentials, bool $supported): void
     {
         $connector = new ArrayConnector($this->createPasswordHasher());
 
-        $this->assertSame('array', $connector->getName());
+        $this->assertSame($supported, $connector->supports($credentials));
     }
 
-    public function testSupportsWithValidCredentials(): void
+    public static function supportedCredentials(): array
     {
-        $connector = new ArrayConnector($this->createPasswordHasher());
-
-        $this->assertTrue($connector->supports(['identifier' => 'test', 'password' => 'pass']));
-    }
-
-    public function testSupportsReturnsFalseWithoutIdentifier(): void
-    {
-        $connector = new ArrayConnector($this->createPasswordHasher());
-
-        $this->assertFalse($connector->supports(['password' => 'pass']));
-    }
-
-    public function testSupportsReturnsFalseWithoutPassword(): void
-    {
-        $connector = new ArrayConnector($this->createPasswordHasher());
-
-        $this->assertFalse($connector->supports(['identifier' => 'test']));
+        return [
+            'identifier and password' => [['identifier' => 'test', 'password' => 'pass'], true],
+            'empty strings still count' => [['identifier' => '', 'password' => ''], true],
+            'no identifier' => [['password' => 'pass'], false],
+            'no password' => [['identifier' => 'test'], false],
+            'null identifier' => [['identifier' => null, 'password' => 'pass'], false],
+            'null password' => [['identifier' => 'test', 'password' => null], false],
+            'an email key is not an identifier' => [['email' => 'test', 'password' => 'pass'], false],
+        ];
     }
 
     public function testAddUserAndAuthenticateSuccess(): void
@@ -72,13 +64,19 @@ class ArrayConnectorTest extends TestCase
             'password' => 'secret',
         ]);
 
-        $this->assertTrue($result->isSuccess());
-        $this->assertSame(AuthStatusEnum::SUCCESS, $result->getStatus());
-        $this->assertSame('array', $result->getType());
-        $this->assertSame(1, $result->getUserId());
-        $this->assertSame('admin@example.com', $result->getEmail());
-        $this->assertSame('Admin', $result->getFirstname());
-        $this->assertSame('User', $result->getLastname());
+        $this->assertSame([
+            'status' => 1,
+            'message' => 'Authentication successful',
+            'user_id' => 1,
+            'identifier' => '',
+            'email' => 'admin@example.com',
+            'username' => '',
+            'firstname' => 'Admin',
+            'lastname' => 'User',
+            'fullname' => 'Admin User',
+            'type' => 'array',
+            'data' => [],
+        ], $result->toArray());
     }
 
     public function testAuthenticateReturnsUserNotFound(): void
@@ -92,6 +90,7 @@ class ArrayConnectorTest extends TestCase
 
         $this->assertFalse($result->isSuccess());
         $this->assertSame(AuthStatusEnum::USER_NOT_FOUND, $result->getStatus());
+        $this->assertSame('array', $result->getType());
     }
 
     public function testAuthenticateReturnsInvalidPassword(): void
@@ -106,6 +105,46 @@ class ArrayConnectorTest extends TestCase
 
         $this->assertFalse($result->isSuccess());
         $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $result->getStatus());
+        $this->assertSame('array', $result->getType());
+    }
+
+    public function testAddUserStoresTheHashAndVerifiesAgainstIt(): void
+    {
+        $connector = new ArrayConnector($this->createPasswordHasher());
+        $connector->addUser('admin', 'secret', 1);
+
+        // the stored value is "hashed:secret": sending it back is not the password
+        $replayed = $connector->authenticate(['identifier' => 'admin', 'password' => 'hashed:secret']);
+        $genuine = $connector->authenticate(['identifier' => 'admin', 'password' => 'secret']);
+
+        $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $replayed->getStatus());
+        $this->assertTrue($genuine->isSuccess());
+    }
+
+    public function testPreloadedUsersAreVerifiedThroughTheHasher(): void
+    {
+        $connector = new ArrayConnector($this->createPasswordHasher(), [
+            'admin' => ['id' => 3, 'password' => 'hashed:secret'],
+        ]);
+
+        $genuine = $connector->authenticate(['identifier' => 'admin', 'password' => 'secret']);
+        $replayed = $connector->authenticate(['identifier' => 'admin', 'password' => 'hashed:secret']);
+
+        $this->assertTrue($genuine->isSuccess());
+        $this->assertSame(3, $genuine->getUserId());
+        $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $replayed->getStatus());
+    }
+
+    public function testPlainPasswordsModeNeverCallsTheHasher(): void
+    {
+        $hasher = $this->createMock(PasswordHasherInterface::class);
+        $hasher->expects($this->never())->method('hash');
+        $hasher->expects($this->never())->method('verify');
+
+        $connector = new ArrayConnector($hasher, [], true);
+        $connector->addUser('admin', 'plain123', 1);
+
+        $this->assertTrue($connector->authenticate(['identifier' => 'admin', 'password' => 'plain123'])->isSuccess());
     }
 
     public function testPlainPasswordsMode(): void
@@ -173,5 +212,35 @@ class ArrayConnectorTest extends TestCase
 
         $this->assertTrue($result->isSuccess());
         $this->assertSame('admin@test.com', $result->getEmail());
+    }
+
+    public function testAddUserDataCannotOverrideTheIdOrThePassword(): void
+    {
+        $connector = new ArrayConnector($this->createPasswordHasher());
+        $connector->addUser('admin', 'secret', 1, [
+            'id' => 99,
+            'password' => 'hashed:other',
+            'email' => 'admin@example.com',
+        ]);
+
+        $genuine = $connector->authenticate(['identifier' => 'admin', 'password' => 'secret']);
+        $fromData = $connector->authenticate(['identifier' => 'admin', 'password' => 'other']);
+
+        $this->assertSame(1, $genuine->getUserId());
+        $this->assertSame('admin@example.com', $genuine->getEmail());
+        $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $fromData->getStatus());
+    }
+
+    public function testAddUserReplacesAnExistingIdentifier(): void
+    {
+        $connector = new ArrayConnector($this->createPasswordHasher());
+        $connector->addUser('admin', 'old', 1);
+        $connector->addUser('admin', 'new', 2);
+
+        $old = $connector->authenticate(['identifier' => 'admin', 'password' => 'old']);
+        $new = $connector->authenticate(['identifier' => 'admin', 'password' => 'new']);
+
+        $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $old->getStatus());
+        $this->assertSame(2, $new->getUserId());
     }
 }

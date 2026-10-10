@@ -7,98 +7,97 @@
 
 namespace JDZ\Authentication\Tests\Connector;
 
-use JDZ\Authentication\AuthenticationResult;
 use JDZ\Authentication\AuthStatusEnum;
 use JDZ\Authentication\Connector\BasicConnector;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class BasicConnectorTest extends TestCase
 {
-    public function testConstructorThrowsExceptionForMissingIdentifier(): void
+    /**
+     * A bcrypt hash cheap enough for a test; the constructor keeps a pre-hashed password as is.
+     */
+    private static function hash(string $password): string
+    {
+        return password_hash($password, PASSWORD_BCRYPT, ['cost' => 4]);
+    }
+
+    #[DataProvider('missingConstructorArguments')]
+    public function testConstructorRefusesAnEmptyIdentifierOrPassword(string $identifier, string $password): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Identifier and password must be provided.');
 
-        new BasicConnector('', 'test');
+        new BasicConnector($identifier, $password);
     }
 
-    public function testConstructorThrowsExceptionForEmptyPassword(): void
+    public static function missingConstructorArguments(): array
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Identifier and password must be provided.');
-
-        new BasicConnector('testuser', '');
+        return [
+            'empty identifier' => ['', 'test'],
+            'empty password' => ['testuser', ''],
+            'both empty' => ['', ''],
+        ];
     }
 
-    public function testGetName(): void
+    #[DataProvider('otherIdentifiers')]
+    public function testOnlyTheExactIdentifierIsKnown(array $credentials): void
     {
-        $connector = new BasicConnector('testuser', 'testpass');
-
-        $this->assertSame('basic', $connector->getName());
-    }
-
-    public function testSupportsWithValidCredentials(): void
-    {
-        $connector = new BasicConnector('testuser', 'testpass');
-
-        $this->assertTrue($connector->supports(['identifier' => 'test', 'password' => 'pass']));
-    }
-
-    public function testSupportsReturnsFalseWithoutIdentifier(): void
-    {
-        $connector = new BasicConnector('testuser', 'testpass');
-
-        $this->assertFalse($connector->supports(['password' => 'pass']));
-    }
-
-    public function testSupportsReturnsFalseWithoutPassword(): void
-    {
-        $connector = new BasicConnector('testuser', 'testpass');
-
-        $this->assertFalse($connector->supports(['identifier' => 'test']));
-    }
-
-    public function testAuthenticateReturnsUserNotFoundForWrongIdentifier(): void
-    {
-        $connector = new BasicConnector('testuser', 'testpass');
-        $credentials = ['identifier' => 'wronguser', 'password' => 'testpass'];
+        $connector = new BasicConnector('testuser', self::hash('testpass'));
 
         $result = $connector->authenticate($credentials);
 
-        $this->assertInstanceOf(AuthenticationResult::class, $result);
-        $this->assertFalse($result->isSuccess());
         $this->assertSame(AuthStatusEnum::USER_NOT_FOUND, $result->getStatus());
+        $this->assertSame('basic', $result->getType());
+    }
+
+    public static function otherIdentifiers(): array
+    {
+        return [
+            'another identifier' => [['identifier' => 'wronguser', 'password' => 'testpass']],
+            'another case' => [['identifier' => 'TestUser', 'password' => 'testpass']],
+            'surrounding spaces (trimming is Authentication\'s job)' => [['identifier' => ' testuser ', 'password' => 'testpass']],
+            'no identifier key' => [['password' => 'testpass']],
+        ];
     }
 
     public function testAuthenticateReturnsInvalidPasswordForWrongPassword(): void
     {
-        $connector = new BasicConnector('testuser', 'correctpass');
+        $connector = new BasicConnector('testuser', self::hash('correctpass'));
         $credentials = ['identifier' => 'testuser', 'password' => 'wrongpass'];
 
         $result = $connector->authenticate($credentials);
 
         $this->assertFalse($result->isSuccess());
         $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $result->getStatus());
+        $this->assertSame('basic', $result->getType());
     }
 
     public function testAuthenticateSucceedsWithCorrectCredentials(): void
     {
-        $password = 'testpassword';
-        $connector = new BasicConnector('testuser', $password);
-        $credentials = ['identifier' => 'testuser', 'password' => $password];
+        // a plain password: the constructor hashes it
+        $connector = new BasicConnector('testuser', 'testpassword');
 
-        $result = $connector->authenticate($credentials);
+        $result = $connector->authenticate(['identifier' => 'testuser', 'password' => 'testpassword']);
 
-        $this->assertTrue($result->isSuccess());
-        $this->assertSame(AuthStatusEnum::SUCCESS, $result->getStatus());
-        $this->assertSame('basic', $result->getType());
-        $this->assertSame('testuser', $result->getUsername());
+        $this->assertSame([
+            'status' => 1,
+            'message' => 'Authentication successful',
+            'user_id' => null,
+            'identifier' => '',
+            'email' => '',
+            'username' => 'testuser',
+            'firstname' => '',
+            'lastname' => '',
+            'fullname' => '',
+            'type' => 'basic',
+            'data' => [],
+        ], $result->toArray());
     }
 
     public function testAuthenticateWithPreHashedPassword(): void
     {
-        $hashedPassword = password_hash('testpassword', PASSWORD_DEFAULT);
-        $connector = new BasicConnector('testuser', $hashedPassword);
+        $connector = new BasicConnector('testuser', self::hash('testpassword'));
         $credentials = ['identifier' => 'testuser', 'password' => 'testpassword'];
 
         $result = $connector->authenticate($credentials);
@@ -106,14 +105,13 @@ class BasicConnectorTest extends TestCase
         $this->assertTrue($result->isSuccess());
     }
 
-    public function testAuthenticateHashesPlainTextPassword(): void
+    public function testAPreHashedPasswordIsNotItselfThePassword(): void
     {
-        // Constructor should hash plain text passwords
-        $connector = new BasicConnector('testuser', 'plaintext');
-        $credentials = ['identifier' => 'testuser', 'password' => 'plaintext'];
+        $hash = self::hash('testpassword');
+        $connector = new BasicConnector('testuser', $hash);
 
-        $result = $connector->authenticate($credentials);
+        $result = $connector->authenticate(['identifier' => 'testuser', 'password' => $hash]);
 
-        $this->assertTrue($result->isSuccess());
+        $this->assertSame(AuthStatusEnum::INVALID_PASSWORD, $result->getStatus());
     }
 }

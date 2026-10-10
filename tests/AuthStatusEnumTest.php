@@ -8,70 +8,66 @@
 namespace JDZ\Authentication\Tests;
 
 use JDZ\Authentication\AuthStatusEnum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class AuthStatusEnumTest extends TestCase
 {
-    public function testFailureCase(): void
+    /**
+     * The codes leave the package (`AuthenticationResult::toArray()['status']`,
+     * `AuthenticationException::getCode()`): renumbering or adding a case is a contract change.
+     */
+    public function testStatusCodesAreStable(): void
     {
-        $this->assertEquals(0, AuthStatusEnum::FAILURE->value);
-        $this->assertEquals('Authentication failed', AuthStatusEnum::FAILURE->message());
-        $this->assertFalse(AuthStatusEnum::FAILURE->isSuccess());
+        $codes = [];
+        foreach (AuthStatusEnum::cases() as $status) {
+            $codes[$status->name] = $status->value;
+        }
+
+        $this->assertSame([
+            'FAILURE' => 0,
+            'SUCCESS' => 1,
+            'EMPTY_IDENTIFIER' => 2,
+            'EMPTY_PASSWORD' => 3,
+            'USER_NOT_FOUND' => 4,
+            'INVALID_PASSWORD' => 5,
+            'USER_BANNED' => 6,
+            'USER_NOT_CONFIRMED' => 7,
+            'ACCOUNT_LOCKED' => 8,
+        ], $codes);
     }
 
-    public function testSuccessCase(): void
+    public function testOnlySuccessIsASuccess(): void
     {
-        $this->assertEquals(1, AuthStatusEnum::SUCCESS->value);
-        $this->assertEquals('Authentication successful', AuthStatusEnum::SUCCESS->message());
-        $this->assertTrue(AuthStatusEnum::SUCCESS->isSuccess());
+        $successes = array_values(array_filter(
+            AuthStatusEnum::cases(),
+            static fn(AuthStatusEnum $status): bool => $status->isSuccess()
+        ));
+
+        $this->assertSame([AuthStatusEnum::SUCCESS], $successes);
     }
 
-    public function testEmptyIdentifierCase(): void
+    #[DataProvider('messages')]
+    public function testMessage(AuthStatusEnum $status, string $message): void
     {
-        $this->assertEquals(2, AuthStatusEnum::EMPTY_IDENTIFIER->value);
-        $this->assertEquals('Please enter your email or username', AuthStatusEnum::EMPTY_IDENTIFIER->message());
-        $this->assertFalse(AuthStatusEnum::EMPTY_IDENTIFIER->isSuccess());
+        $this->assertSame($message, $status->message());
     }
 
-    public function testEmptyPasswordCase(): void
+    /**
+     * INVALID_PASSWORD is left out on purpose: its "Invalid password" tells a wrong
+     * password apart from an unknown user ("Invalid credentials"): reported, not pinned.
+     */
+    public static function messages(): array
     {
-        $this->assertEquals(3, AuthStatusEnum::EMPTY_PASSWORD->value);
-        $this->assertEquals('Please enter your password', AuthStatusEnum::EMPTY_PASSWORD->message());
-        $this->assertFalse(AuthStatusEnum::EMPTY_PASSWORD->isSuccess());
-    }
-
-    public function testUserNotFoundCase(): void
-    {
-        $this->assertEquals(4, AuthStatusEnum::USER_NOT_FOUND->value);
-        $this->assertEquals('Invalid credentials', AuthStatusEnum::USER_NOT_FOUND->message());
-        $this->assertFalse(AuthStatusEnum::USER_NOT_FOUND->isSuccess());
-    }
-
-    public function testInvalidPasswordCase(): void
-    {
-        $this->assertEquals(5, AuthStatusEnum::INVALID_PASSWORD->value);
-        $this->assertEquals('Invalid password', AuthStatusEnum::INVALID_PASSWORD->message());
-        $this->assertFalse(AuthStatusEnum::INVALID_PASSWORD->isSuccess());
-    }
-
-    public function testUserBannedCase(): void
-    {
-        $this->assertEquals(6, AuthStatusEnum::USER_BANNED->value);
-        $this->assertEquals('Your account has been suspended', AuthStatusEnum::USER_BANNED->message());
-        $this->assertFalse(AuthStatusEnum::USER_BANNED->isSuccess());
-    }
-
-    public function testUserNotConfirmedCase(): void
-    {
-        $this->assertEquals(7, AuthStatusEnum::USER_NOT_CONFIRMED->value);
-        $this->assertEquals('Please confirm your email address', AuthStatusEnum::USER_NOT_CONFIRMED->message());
-        $this->assertFalse(AuthStatusEnum::USER_NOT_CONFIRMED->isSuccess());
-    }
-
-    public function testAccountLockedCase(): void
-    {
-        $this->assertEquals(8, AuthStatusEnum::ACCOUNT_LOCKED->value);
-        $this->assertEquals('Account temporarily locked due to too many failed attempts', AuthStatusEnum::ACCOUNT_LOCKED->message());
-        $this->assertFalse(AuthStatusEnum::ACCOUNT_LOCKED->isSuccess());
+        return [
+            'failure' => [AuthStatusEnum::FAILURE, 'Authentication failed'],
+            'success' => [AuthStatusEnum::SUCCESS, 'Authentication successful'],
+            'empty identifier' => [AuthStatusEnum::EMPTY_IDENTIFIER, 'Please enter your email or username'],
+            'empty password' => [AuthStatusEnum::EMPTY_PASSWORD, 'Please enter your password'],
+            'user not found' => [AuthStatusEnum::USER_NOT_FOUND, 'Invalid credentials'],
+            'user banned' => [AuthStatusEnum::USER_BANNED, 'Your account has been suspended'],
+            'user not confirmed' => [AuthStatusEnum::USER_NOT_CONFIRMED, 'Please confirm your email address'],
+            'account locked' => [AuthStatusEnum::ACCOUNT_LOCKED, 'Account temporarily locked due to too many failed attempts'],
+        ];
     }
 }
