@@ -274,6 +274,7 @@ $result->toArray();         // array - Convert to array
 
 ## Changelog
 
+- **3.6.9** — `DatabaseConnector` quotes the table and column names through the database (`` `#__user` ``, `` `email` ``): they come from the config only, but a column named like a keyword or a table with a space now works, and nothing can ride on them (they were concatenated).
 - **3.6.8** — An unknown user and a wrong password get the same message ("Invalid credentials") and the same hashing time (the not-found path verifies against a dummy hash): neither tells whether the account exists. `"0"` is a valid identifier or password; a numeric identifier or password is read as text, any other non-string as missing (it was a TypeError). `supports()` normalises the credentials like `authenticate()`. Plain-password mode compares with `hash_equals()`. `DatabaseConnector` reads only its documented options (`name` and `database` were overwritable; `checkBanned => 1` was a TypeError).
 
 - **3.6.7** — `JDZ\Authentication\Connector\ConnectorInterface` is back as a deprecated alias of `Contract\ConnectorInterface` (3.6.0 had removed the old name).
