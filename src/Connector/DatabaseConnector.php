@@ -97,10 +97,14 @@ class DatabaseConnector extends AbstractConnector
             $columns[] = $this->confirmedColumn;
         }
 
+        // the names come from the config only, quoted anyway: a keyword or a space works
+        // and nothing can ride on them (they used to be concatenated)
+        $quote = fn (string $name): string => $this->database->quoteName($name);
+
         $query = (new SelectQuery())
-            ->select(array_unique($columns))
-            ->from('#__' . $this->table)
-            ->where($this->identifierColumn . ' = :identifier')
+            ->select(array_map($quote, array_unique($columns)))
+            ->from($quote('#__' . $this->table))
+            ->where($quote($this->identifierColumn) . ' = :identifier')
             ->bindParam(':identifier', $identifier);
 
         $this->database->setQuery($query);

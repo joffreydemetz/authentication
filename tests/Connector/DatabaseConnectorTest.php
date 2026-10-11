@@ -50,7 +50,7 @@ class DatabaseConnectorTest extends TestCase
 
     private static function defaultSql(): string
     {
-        return self::sql('SELECT id, email, password', 'FROM #__user', 'WHERE email = :identifier');
+        return self::sql('SELECT `id`, `email`, `password`', 'FROM `#__user`', 'WHERE `email` = :identifier');
     }
 
     /**
@@ -66,6 +66,10 @@ class DatabaseConnectorTest extends TestCase
             return $query;
         });
         $database->method('loadAssoc')->willReturn($row);
+        // MySQL-style quoting, as the real drivers do
+        $database->method('quoteName')->willReturnCallback(
+            fn (string $name, ?string $as = null): string => '`' . str_replace('.', '`.`', $name) . '`' . (null !== $as ? ' AS `' . $as . '`' : '')
+        );
 
         return $database;
     }
@@ -129,39 +133,48 @@ class DatabaseConnectorTest extends TestCase
         return [
             'setTable' => [
                 static fn(DatabaseConnector $c) => $c->setTable('members'),
-                self::sql('SELECT id, email, password', 'FROM #__members', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`', 'FROM `#__members`', 'WHERE `email` = :identifier'),
             ],
             'setIdentifierColumn' => [
                 static fn(DatabaseConnector $c) => $c->setIdentifierColumn('username'),
-                self::sql('SELECT id, username, password', 'FROM #__user', 'WHERE username = :identifier'),
+                self::sql('SELECT `id`, `username`, `password`', 'FROM `#__user`', 'WHERE `username` = :identifier'),
             ],
             'setPasswordColumn' => [
                 static fn(DatabaseConnector $c) => $c->setPasswordColumn('pass_hash'),
-                self::sql('SELECT id, email, pass_hash', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `pass_hash`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'setExtraColumns' => [
                 static fn(DatabaseConnector $c) => $c->setExtraColumns(['username', 'firstname', 'lastname']),
-                self::sql('SELECT id, email, password, username, firstname, lastname', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `username`, `firstname`, `lastname`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'setExtraColumns: a column already selected is selected once' => [
                 static fn(DatabaseConnector $c) => $c->setExtraColumns(['email', 'id', 'firstname', 'password']),
-                self::sql('SELECT id, email, password, firstname', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `firstname`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'setExtraColumns: the last call replaces the list' => [
                 static fn(DatabaseConnector $c) => $c->setExtraColumns(['username'])->setExtraColumns(['firstname']),
-                self::sql('SELECT id, email, password, firstname', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `firstname`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
+            ],
+            // 3.6.9: the names are quoted (they were concatenated): a keyword or a space works
+            'setIdentifierColumn: a column named like a keyword' => [
+                static fn (DatabaseConnector $c) => $c->setIdentifierColumn('order'),
+                self::sql('SELECT `id`, `order`, `password`', 'FROM `#__user`', 'WHERE `order` = :identifier'),
+            ],
+            'setTable: a table with a space in its name' => [
+                static fn (DatabaseConnector $c) => $c->setTable('my users'),
+                self::sql('SELECT `id`, `email`, `password`', 'FROM `#__my users`', 'WHERE `email` = :identifier'),
             ],
             'setCheckBanned selects the banned column' => [
                 static fn(DatabaseConnector $c) => $c->setCheckBanned(true),
-                self::sql('SELECT id, email, password, banned', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `banned`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'setCheckConfirmed selects the confirmed column' => [
                 static fn(DatabaseConnector $c) => $c->setCheckConfirmed(true),
-                self::sql('SELECT id, email, password, confirmed', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `confirmed`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'both checks: banned before confirmed' => [
                 static fn(DatabaseConnector $c) => $c->setCheckConfirmed(true)->setCheckBanned(true),
-                self::sql('SELECT id, email, password, banned, confirmed', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `banned`, `confirmed`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'checks switched back off' => [
                 static fn(DatabaseConnector $c) => $c->setCheckBanned(true)->setCheckConfirmed(true)->setCheckBanned(false)->setCheckConfirmed(false),
@@ -175,7 +188,7 @@ class DatabaseConnectorTest extends TestCase
                     ->setExtraColumns(['firstname', 'lastname'])
                     ->setCheckBanned(true)
                     ->setCheckConfirmed(true),
-                self::sql('SELECT id, login, hash, firstname, lastname, banned, confirmed', 'FROM #__members', 'WHERE login = :identifier'),
+                self::sql('SELECT `id`, `login`, `hash`, `firstname`, `lastname`, `banned`, `confirmed`', 'FROM `#__members`', 'WHERE `login` = :identifier'),
             ],
         ];
     }
@@ -195,27 +208,27 @@ class DatabaseConnectorTest extends TestCase
         return [
             'table' => [
                 ['table' => 'members'],
-                self::sql('SELECT id, email, password', 'FROM #__members', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`', 'FROM `#__members`', 'WHERE `email` = :identifier'),
             ],
             'identifierColumn' => [
                 ['identifierColumn' => 'username'],
-                self::sql('SELECT id, username, password', 'FROM #__user', 'WHERE username = :identifier'),
+                self::sql('SELECT `id`, `username`, `password`', 'FROM `#__user`', 'WHERE `username` = :identifier'),
             ],
             'passwordColumn' => [
                 ['passwordColumn' => 'pass_hash'],
-                self::sql('SELECT id, email, pass_hash', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `pass_hash`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'extraColumns' => [
                 ['extraColumns' => ['username', 'firstname']],
-                self::sql('SELECT id, email, password, username, firstname', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `username`, `firstname`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'checkBanned with bannedColumn' => [
                 ['checkBanned' => true, 'bannedColumn' => 'is_blocked'],
-                self::sql('SELECT id, email, password, is_blocked', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `is_blocked`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'checkConfirmed with confirmedColumn' => [
                 ['checkConfirmed' => true, 'confirmedColumn' => 'email_verified'],
-                self::sql('SELECT id, email, password, email_verified', 'FROM #__user', 'WHERE email = :identifier'),
+                self::sql('SELECT `id`, `email`, `password`, `email_verified`', 'FROM `#__user`', 'WHERE `email` = :identifier'),
             ],
             'banned/confirmed columns without their check are not selected' => [
                 ['bannedColumn' => 'is_blocked', 'confirmedColumn' => 'email_verified'],
